@@ -16,7 +16,6 @@ use pgBackRest::Common::Ini;
 use pgBackRest::Common::Log;
 use pgBackRest::Common::String;
 use pgBackRest::Protocol::Common;
-use pgBackRest::Protocol::IO;
 use pgBackRest::Version;
 
 ####################################################################################################################################
