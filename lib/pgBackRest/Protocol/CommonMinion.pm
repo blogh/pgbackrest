@@ -32,6 +32,7 @@ sub new
         $strOperation,
         $strName,                                   # Name of the protocol
         $strCommand,                                # Command the master process is running
+        $oIO,                                       # IO object
         $iBufferMax,                                # Maximum buffer size
         $iCompressLevel,                            # Set compression level
         $iCompressLevelNetwork,                     # Set compression level for network only compression
@@ -40,22 +41,24 @@ sub new
         logDebugParam
         (
             __PACKAGE__ . '->new', \@_,
-            {name => 'strName'},
-            {name => 'strCommand'},
-            {name => 'iBufferMax'},
-            {name => 'iCompressLevel'},
-            {name => 'iCompressLevelNetwork'},
-            {name => 'iProtocolTimeout'},
+            {name => 'strName', trace => true},
+            {name => 'strCommand', trace => true},
+            {name => 'oIO', trace => true},
+            {name => 'iBufferMax', trace => true},
+            {name => 'iCompressLevel', trace => true},
+            {name => 'iCompressLevelNetwork', trace => true},
+            {name => 'iProtocolTimeout', trace => true},
         );
 
     # Create the class hash
     my $self = $class->SUPER::new($iBufferMax, $iCompressLevel, $iCompressLevelNetwork, $iProtocolTimeout, $strName);
     bless $self, $class;
 
-    $self->{strCommand} = $strCommand;
+    # Set IO Object
+    $self->{io} = $oIO;
 
-    # Create the IO object with std io
-    $self->{io} = new pgBackRest::Protocol::IO(*STDIN, *STDOUT, *STDERR, undef, undef, $iProtocolTimeout, $iBufferMax);
+    # Set command the master is running
+    $self->{strCommand} = $strCommand;
 
     # Write the greeting so master process knows who we are
     $self->greetingWrite();
@@ -67,7 +70,7 @@ sub new
     return logDebugReturn
     (
         $strOperation,
-        {name => 'self', value => $self}
+        {name => 'self', value => $self, trace => true}
     );
 }
 
