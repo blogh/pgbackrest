@@ -147,7 +147,10 @@ sub process
                 IO::Socket::UNIX->new(Type => SOCK_STREAM, Peer => $strSocketFile), ERROR_ARCHIVE_TIMEOUT,
                 'unable to connect to ' . CMD_ARCHIVE_PUSH . " async process socket: ${strSocketFile}");
 
-            &log(WARN, "I AM CONNECTED");
+            my $oConn = new pgBackRest::Protocol::IO(
+                $oClient, $oClient, undef, undef, 'socket-1', 5, OPTION_DEFAULT_BUFFER_SIZE);
+
+            &log(WARN, "I AM CONNECTED: " . $oConn->lineRead());
         }
         else
         {
@@ -176,6 +179,11 @@ sub process
             my $conn = $oServer->accept();
 
             &log(WARN, "CONNECTION FROM CLIENT");
+
+            my $oConn = new pgBackRest::Protocol::IO(
+                $conn, $conn, undef, undef, 'socket-1', 5, OPTION_DEFAULT_BUFFER_SIZE);
+            $oConn->lineWrite("A MESSAGE JUST FOR YOU, DEAR CLIENT!!!");
+
             $conn->close();
             $oServer->close();
             fileRemove($strSocketFile, true);
