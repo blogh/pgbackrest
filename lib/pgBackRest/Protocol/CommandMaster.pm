@@ -16,7 +16,7 @@ use pgBackRest::Common::Exception;
 use pgBackRest::Common::Ini;
 use pgBackRest::Common::Log;
 use pgBackRest::Protocol::Common;
-use pgBackRest::Protocol::IO::IO;
+use pgBackRest::Protocol::IO::HandleIO;
 use pgBackRest::Version;
 
 ####################################################################################################################################
@@ -59,7 +59,7 @@ sub new
     }
 
     # Execute the command
-    my $oIO = pgBackRest::Protocol::IO::IO->new3($strId, $strCommand, $iProtocolTimeout, $iBufferMax);
+    my $oIO = pgBackRest::Protocol::IO::HandleIO->new3($strId, $strCommand, $iProtocolTimeout, $iBufferMax);
 
     # Create the class hash
     my $self = $class->SUPER::new(
@@ -98,7 +98,7 @@ sub close
     my $bClosed = false;
 
     # Only send the exit command if the process is running
-    if (defined($self->{io}) && defined($self->{io}->pIdGet()))
+    if (defined($self->{io}) && defined($self->{io}->processId()))
     {
         &log(TRACE, "sending exit command to process");
 

@@ -16,7 +16,6 @@ use pgBackRest::Common::Exception;
 use pgBackRest::Common::Ini;
 use pgBackRest::Common::Log;
 use pgBackRest::Protocol::Common;
-use pgBackRest::Protocol::IO::IO;
 use pgBackRest::Version;
 
 ####################################################################################################################################
@@ -112,8 +111,6 @@ sub greetingRead
     {
         if (!defined($hGreeting->{$hParam->{strName}}) || $hGreeting->{$hParam->{strName}} ne $hParam->{strExpected})
         {
-            $self->{io}->kill();
-
             confess &log(ERROR,
                 'found name \'' . (defined($hGreeting->{$hParam->{strName}}) ? $hGreeting->{$hParam->{strName}} : '[undef]') .
                 "' in protocol greeting instead of expected '$hParam->{strName}'", ERROR_HOST_CONNECT);

@@ -16,7 +16,7 @@ use JSON::PP;
 use pgBackRest::Common::Exception;
 use pgBackRest::Common::Ini;
 use pgBackRest::Common::Log;
-use pgBackRest::Protocol::IO::IO;
+use pgBackRest::Protocol::IO::HandleIO;
 
 ####################################################################################################################################
 # DB/BACKUP Constants
@@ -262,7 +262,7 @@ sub binaryXfer
     }
     else
     {
-        $oIn = new pgBackRest::Protocol::IO::IO(
+        $oIn = new pgBackRest::Protocol::IO::HandleIO(
             $hIn, undef, $self->{io}->{hErr}, $self->{io}->{pid}, $self->{io}->{strId}, $self->{iProtocolTimeout},
             $self->{iBufferMax});
     }
@@ -276,7 +276,7 @@ sub binaryXfer
     }
     elsif ($hOut ne 'none')
     {
-        $oOut = new pgBackRest::Protocol::IO::IO(
+        $oOut = new pgBackRest::Protocol::IO::HandleIO(
             undef, $hOut, $self->{io}->{hErr}, $self->{io}->{pid}, $self->{io}->{strId}, $self->{iProtocolTimeout},
             $self->{iBufferMax});
     }

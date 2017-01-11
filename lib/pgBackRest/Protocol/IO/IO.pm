@@ -42,13 +42,11 @@ sub new
     # Assign function parameters, defaults, and log debug info
     (
         my $strOperation,
-        $self->{hIn},                               # Input stream
-        $self->{hOut},                              # Output stream
-        $self->{hErr},                              # Error stream
-        $self->{pId},                               # Process ID
-        $self->{strId},                             # Id for messages
-        $self->{iProtocolTimeout},                  # Protocol timeout
-        $self->{iBufferMax}                         # Maximum buffer size
+        $self->{hIn},                                               # Input stream
+        $self->{hOut},                                              # Output stream
+        $self->{hErr},                                              # Error stream
+        $self->{iProtocolTimeout},                                  # Protocol timeout
+        $self->{iBufferMax},                                        # Maximum buffer size
     ) =
         logDebugParam
         (
@@ -56,8 +54,6 @@ sub new
             {name => 'hIn', required => false, trace => true},
             {name => 'hOut', required => false, trace => true},
             {name => 'hErr', required => false, trace => true},
-            {name => 'pId', required => false, trace => true},
-            {name => 'strId', required => false, trace => true},
             {name => 'iProtocolTimeout', trace => true},
             {name => 'iBufferMax', trace => true}
         );
@@ -118,45 +114,27 @@ sub new3
 }
 
 ####################################################################################################################################
-# Get pid/input/output handles
+# Get input/output/error handles
 ####################################################################################################################################
-sub hInGet
+sub inputHandle
 {
     my $self = shift;
 
     return $self->{hIn};
 }
 
-sub hOutGet
+sub outputHandle
 {
     my $self = shift;
 
     return $self->{hOut};
 }
 
-sub pIdGet
+sub errorHandle
 {
     my $self = shift;
 
-    return $self->{pId};
-}
-
-####################################################################################################################################
-# kill
-####################################################################################################################################
-sub kill
-{
-    my $self = shift;
-
-    if (defined($self->{pId}))
-    {
-        kill 'KILL', $self->{pId};
-        waitpid($self->{pId}, 0);
-        undef($self->{pId});
-        undef($self->{hIn});
-        undef($self->{hOut});
-        undef($self->{hErr});
-    }
+    return $self->{hErr};
 }
 
 ####################################################################################################################################
@@ -243,7 +221,7 @@ sub lineRead
                     my $strError = defined($!) && $! ne '' ? $! : undef;
 
                     # Check if the remote process exited unexpectedly
-                    $self->waitPid();
+                    $self->error();
 
                     # Raise the error
                     confess &log(ERROR, 'unable to read line' . (defined($strError) ? ": ${strError}" : ''));
@@ -253,7 +231,7 @@ sub lineRead
                 if ($iBufferRead == 0 && (!defined($bIgnoreEOF) || !$bIgnoreEOF))
                 {
                     # Check if the remote process exited unexpectedly
-                    $self->waitPid();
+                    $self->error();
 
                     # Only error if reading from the input stream
                     if (!defined($bError) || $bError)
@@ -278,7 +256,7 @@ sub lineRead
             else
             {
                 # Check if the remote process exited unexpectedly
-                $self->waitPid(0);
+                $self->error(0);
             }
 
             # Calculate time remaining before timeout
@@ -340,7 +318,7 @@ sub lineWrite
 
     # Check if the process has exited abnormally (doesn't seem like we should need this, but the next syswrite does a hard
     # abort if the remote process has already closed)
-    $self->waitPid(0);
+    $self->error(0);
 
     # Write the data
     my $iLineOut = syswrite(defined($hOut) ? $hOut : $self->{hOut}, (defined($strBuffer) ? $strBuffer : '') . "\n");
@@ -348,7 +326,7 @@ sub lineWrite
     if (!defined($iLineOut) || $iLineOut != (defined($strBuffer) ? length($strBuffer) : 0) + 1)
     {
         # Check if the process has exited abnormally
-        $self->waitPid();
+        $self->errors();
 
         confess &log(ERROR, "unable to write ${strBuffer}: $!", ERROR_PROTOCOL);
     }
@@ -397,10 +375,6 @@ sub bufferRead
 
     # If this is a blocking read then loop until all bytes have been read, else error.  If not blocking read until the request size
     # has been met or EOF.
-    #
-    # This link (http://docstore.mik.ua/orelly/perl/cookbook/ch07_15.htm) demonstrates a way to implement this same loop without
-    # using select.  Not sure if it would be better but the link has been left here so it can be found in the future if the
-    # implementation needs to be changed.
     my $fTimeStart = gettimeofday();
     my $fRemaining = 1; #$self->{iProtocolTimeout};
 
@@ -417,7 +391,7 @@ sub bufferRead
             {
                 my $strError = $!;
 
-                $self->waitPid();
+                $self->error();
                 confess &log(ERROR, 'unable to read' . (defined($strError) ? ": ${strError}" : ''));
             }
 
@@ -479,104 +453,9 @@ sub bufferWrite
     {
         my $strError = $!;
 
-        $self->waitPid();
+        $self->error();
         confess &log(ERROR, "unable to write ${iWriteSize} bytes" . (defined($strError) ? ': ' . $strError : ''), ERROR_FILE_WRITE);
     }
-}
-
-####################################################################################################################################
-# waitPid
-#
-# See if the remote process has terminated unexpectedly.
-####################################################################################################################################
-sub waitPid
-{
-    my $self = shift;
-    my $fWaitTime = shift;
-    my $bReportError = shift;
-
-    # Record the start time and set initial sleep interval
-    my $oWait = waitInit(defined($fWaitTime) ? $fWaitTime : IO_ERROR_TIMEOUT);
-
-    if (defined($self->{pId}))
-    {
-        do
-        {
-            my $iResult = waitpid($self->{pId}, WNOHANG);
-
-            # If there is no such process we'll assume it terminated previously
-            if ($iResult == -1)
-            {
-                return true;
-            }
-
-            # If the process exited then this is unexpected
-            if ($iResult > 0)
-            {
-                # Get the exit status so we can report it later
-                my $iExitStatus = ${^CHILD_ERROR_NATIVE} >> 8;
-
-                # Sometimes we'll expect an error so it won't always be reported
-                if (!defined($bReportError) || $bReportError)
-                {
-                    # Default error
-                    my $strError = undef;
-
-                    # If the error stream is already closed then we can't fetch the real error
-                    if (!defined($self->{hErr}))
-                    {
-                        $strError = 'no error captured because stderr is already closed';
-                    }
-                    # Get whatever text we can from the error stream
-                    else
-                    {
-                        eval
-                        {
-                            while (my $strLine = $self->lineRead(0, false, false))
-                            {
-                                if (defined($strError))
-                                {
-                                    $strError .= "\n";
-                                }
-
-                                $strError .= $strLine;
-                            }
-
-                            return true;
-                        }
-                        or do
-                        {
-                            if (!defined($strError))
-                            {
-                                my $strException = $EVAL_ERROR;
-
-                                $strError =
-                                    'no output from terminated process' .
-                                    (defined($strException) && ${strException} ne '' ? ": ${strException}" : '');
-                            }
-                        };
-                    }
-
-                    $self->{pId} = undef;
-                    $self->{hIn} = undef;
-                    $self->{hOut} = undef;
-                    $self->{hErr} = undef;
-
-                    # Finally, confess the error
-                    confess &log(
-                        ERROR, 'remote process terminated on ' . $self->{strId} . ' host' .
-                        ($iExitStatus < ERROR_MINIMUM || $iExitStatus > ERROR_MAXIMUM ? " (exit status ${iExitStatus})" : '') .
-                        ': ' . (defined($strError) ? $strError : 'no error on stderr'),
-                        $iExitStatus >= ERROR_MINIMUM && $iExitStatus <= ERROR_MAXIMUM ? $iExitStatus : ERROR_HOST_CONNECT);
-                }
-
-                return true;
-            }
-        }
-        while (waitMore($oWait));
-    }
-
-    return false;
 }
 
 1;
