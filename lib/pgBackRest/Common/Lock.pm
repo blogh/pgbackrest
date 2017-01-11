@@ -80,7 +80,7 @@ sub lockAcquire
     my $bResult = true;
 
     # Acquire if locking is enabled
-    if (!optionTest(OPTION_LOCK) || optionGet(OPTION_LOCK))
+    if (!optionValid(OPTION_LOCK) || optionGet(OPTION_LOCK))
     {
         $bResult = false;
 
@@ -154,7 +154,7 @@ sub lockRelease
         );
 
     # Release if locking is enabled
-    if (optionValid(OPTION_LOCK))
+    if (!optionValid(OPTION_LOCK) || optionGet(OPTION_LOCK))
     {
         # Fail if there is no lock
         if (!defined($strCurrentLockType))
