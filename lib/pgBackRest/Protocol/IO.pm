@@ -22,6 +22,9 @@ use pgBackRest::Common::Log;
 use pgBackRest::Common::String;
 use pgBackRest::Common::Wait;
 
+# Suppress pipe signals and let syswrite/sysread error as if they had normal file handles
+$SIG{PIPE} = sub {};
+
 ####################################################################################################################################
 # Amount of time to attempt to retrieve errors when a process terminates unexpectedly
 ####################################################################################################################################
