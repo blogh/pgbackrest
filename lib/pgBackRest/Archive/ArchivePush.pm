@@ -13,6 +13,7 @@ use Exporter qw(import);
     our @EXPORT = qw();
 use Fcntl qw(SEEK_CUR O_RDONLY O_WRONLY O_CREAT);
 use File::Basename qw(dirname basename);
+use POSIX qw(setsid);
 use Scalar::Util qw(blessed);
 
 use pgBackRest::Common::Exception;
@@ -62,125 +63,122 @@ sub process
         confess &log(ERROR, CMD_ARCHIVE_PUSH . ' operation must run on the db host');
     }
 
-    # Batch flag indicates that the archive-push command was called without a WAL segment
-    my $bBatch = false;
+    # Error if no WAL segment is defined
+    my $strWalSegment = $ARGV[1];
 
-    # If an archive section has been defined, use that instead of the backup section when command is CMD_ARCHIVE_PUSH
-    my $bArchiveAsync = optionGet(OPTION_ARCHIVE_ASYNC);
+    if (!defined($strWalSegment))
+    {
+        confess &log(ERROR, 'wal segment to push required', ERROR_PARAM_REQUIRED);
+    }
+
+    my $strWalSegmentFile = basename($strWalSegment);
+
+    # Check for a stop lock
+    lockStopTest();
+
+    # Only do async archiving when this file being archived is a WAL segment, otherwise do it synchronously
+    my $bArchiveAsync = optionGet(OPTION_ARCHIVE_ASYNC) && $strWalSegmentFile =~ '^[0-F]{24}$';
 
     # If logging locally then create the stop archiving file name
-    my $strStopFile;
-
-    if ($bArchiveAsync)
-    {
-        $strStopFile = optionGet(OPTION_SPOOL_PATH) . '/stop/' . optionGet(OPTION_STANZA) . "-archive.stop";
-    }
+    # my $strStopFile;
+    #
+    # if ($bArchiveAsync)
+    # {
+    #     $strStopFile = optionGet(OPTION_SPOOL_PATH) . '/stop/' . optionGet(OPTION_STANZA) . "-archive.stop";
+    # }
 
     # If an archive file is defined, then push it
     my $oException = undef;
 
-    if (defined($ARGV[1]))
+    # Start the async process and wait for WAL to complete
+    if ($bArchiveAsync)
     {
         # If the stop file exists then discard the archive log
-        if ($bArchiveAsync)
-        {
-            if (-e $strStopFile)
-            {
-                &log(ERROR, "discarding " . basename($ARGV[1]) .
-                            " due to the archive store max size exceeded" .
-                            " - remove the archive stop file (${strStopFile}) to resume archiving" .
-                            " and be sure to take a new backup as soon as possible");
-                return 0;
-            }
-        }
+        # if ($bArchiveAsync)
+        # {
+        #     if (-e $strStopFile)
+        #     {
+        #         &log(ERROR, "discarding " . basename($ARGV[1]) .
+        #                     " due to the archive store max size exceeded" .
+        #                     " - remove the archive stop file (${strStopFile}) to resume archiving" .
+        #                     " and be sure to take a new backup as soon as possible");
+        #         return 0;
+        #     }
+        # }
 
-        &log(INFO, 'push WAL segment ' . $ARGV[1] . ($bArchiveAsync ? ' asynchronously' : ''));
+        &log(INFO, "push WAL segment ${strWalSegmentFile} asynchronously");
 
-        # Push WAL segment - when async, any error will be deferred until after the async process has been started
-        eval
-        {
-            $self->push($ARGV[1], $bArchiveAsync);
-                return true;
-        }
-        or do
-        {
-            $oException = $EVAL_ERROR;
-
-            if (!$bArchiveAsync || !optionGet(OPTION_TEST_FORK))
-            {
-                confess $oException;
-            }
-        };
-    }
-    # If archive-push is called without a WAL segment then still run in batch mode to clear out the async queue
-    else
-    {
-        $bBatch = true;
-    }
-
-    # If async or batch mode then acquire a lock.  Also fork if in async mode so that the parent process can return to Postres.
-    if ($bArchiveAsync || $bBatch)
-    {
         # Create a lock file to make sure async archive-push does not run more than once
+        my $bClient = true;
+
         if (!lockAcquire(commandGet(), false))
         {
-            logDebugMisc($strOperation, 'async archive-push process is already running - exiting');
-            $bBatch = false;
+            logDebugMisc($strOperation, 'async archive-push process is already running');
         }
         else
         {
-            # Only fork if a WAL segment was specified, otherwise jut run
-            if (!$bBatch)
-            {
-                # Fork and disable the async archive flag if this is the parent process
-                if (optionGet(OPTION_TEST_FORK))
-                {
-                    $bBatch = fork() == 0 ? true : false;
-                }
-                # Else the no-fork flag has been specified for testing
-                else
-                {
-                    logDebugMisc($strOperation, 'no fork on archive local for TESTING');
-                    $bBatch = true;
-                }
-            }
+            $bClient = fork() == 0 ? false : true;
         }
-    }
 
-    # Continue with batch processing
-    if ($bBatch)
-    {
-        # Start the async archive push
-        logDebugMisc($strOperation, 'start async archive-push');
-
-        # Open the log file
-        logFileSet(optionGet(OPTION_LOG_PATH) . '/' . optionGet(OPTION_STANZA) . '-archive-async');
-
-        # Call the archive_xfer function and continue to loop as long as there are files to process
-        my $iLogTotal;
-
-        while (!defined($iLogTotal) || $iLogTotal > 0)
+        if (!$bClient)
         {
-            $iLogTotal = $self->xfer(optionGet(OPTION_SPOOL_PATH) . "/archive/" .
-                                     optionGet(OPTION_STANZA) . "/out", $strStopFile);
+            chdir '/'
+                or confess "chdir() failed: $!";
 
-            if ($iLogTotal > 0)
-            {
-                logDebugMisc($strOperation, "transferred ${iLogTotal} WAL segment" .
-                             ($iLogTotal > 1 ? 's' : '') . ', calling Archive->xfer() again');
-            }
-            else
-            {
-                logDebugMisc($strOperation, 'transfer found 0 WAL segments - exiting');
-            }
+            # create new session group
+            setsid() or confess("setsid() failed: $!");
+
+            # close stdin/stdout
+            open STDIN, '<', '/dev/null'
+                or confess "Couldn't close standard input: $!";
+            open STDOUT, '>', '/dev/null'
+                or confess "Couldn't close standard output: $!";
+
+            sleep(30);
         }
 
-        lockRelease();
+        &log(WARN, "I AM A " . ($bClient ? 'CLIENT' : 'SERVER'));
     }
-    elsif (defined($oException))
+    # Else push synchronously
+    else
     {
-        confess $oException;
+        $self->push($ARGV[1], $bArchiveAsync);
     }
+
+    # # Continue with batch processing
+    # if ($bBatch)
+    # {
+    #     # Start the async archive push
+    #     logDebugMisc($strOperation, 'start async archive-push');
+    #
+    #     # Open the log file
+    #     logFileSet(optionGet(OPTION_LOG_PATH) . '/' . optionGet(OPTION_STANZA) . '-archive-async');
+    #
+    #     # Call the archive_xfer function and continue to loop as long as there are files to process
+    #     my $iLogTotal;
+    #
+    #     while (!defined($iLogTotal) || $iLogTotal > 0)
+    #     {
+    #         $iLogTotal = $self->xfer(optionGet(OPTION_SPOOL_PATH) . "/archive/" .
+    #                                  optionGet(OPTION_STANZA) . "/out", $strStopFile);
+    #
+    #         if ($iLogTotal > 0)
+    #         {
+    #             logDebugMisc($strOperation, "transferred ${iLogTotal} WAL segment" .
+    #                          ($iLogTotal > 1 ? 's' : '') . ', calling Archive->xfer() again');
+    #         }
+    #         else
+    #         {
+    #             logDebugMisc($strOperation, 'transfer found 0 WAL segments - exiting');
+    #         }
+    #     }
+    #
+    #     lockRelease();
+    # }
+    # elsif (defined($oException))
+    # {
+    #     confess $oException;
+    # }
 
     # Return from function and log return values if any
     return logDebugReturn
