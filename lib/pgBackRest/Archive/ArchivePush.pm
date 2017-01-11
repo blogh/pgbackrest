@@ -111,17 +111,17 @@ sub process
 
         # Create a lock file to make sure async archive-push does not run more than once
         my $bClient = true;
-        my $strSocketFile = optionGet(OPTION_LOCK_PATH) . '/archive-async-socket';
+        my $strSocketFile = optionGet(OPTION_LOCK_PATH) . '/archive-push.socket';
 
-        if (!lockAcquire(commandGet(), false))
+        if (lockAcquire(commandGet(), false))
         {
-            logDebugMisc($strOperation, 'async archive-push process is already running');
+            # Remove the old socket file
+            fileRemove($strSocketFile, true);
+            $bClient = fork() == 0 ? false : true;
         }
         else
         {
-            # Remove the old socket file
-            fileRemove($strSocketFile);
-            $bClient = fork() == 0 ? false : true;
+            logDebugMisc($strOperation, 'async archive-push process is already running');
         }
 
         if ($bClient)
@@ -143,16 +143,11 @@ sub process
                 confess &log(ERROR, "unable to find socket after ${iWaitSeconds} second(s)", ERROR_ARCHIVE_TIMEOUT);
             }
 
-            my $oClient = IO::Socket::UNIX->new(Type => SOCK_STREAM, Peer => $strSocketFile);
+            my $oClient = logErrorResult(
+                IO::Socket::UNIX->new(Type => SOCK_STREAM, Peer => $strSocketFile), ERROR_ARCHIVE_TIMEOUT,
+                'unable to connect to ' . CMD_ARCHIVE_PUSH . " async process socket: ${strSocketFile}");
 
-            if (!defined($oClient))
-            {
-                confess &log(ERROR, "CLIENT NOT CONNECTED: " . $!);
-            }
-            else
-            {
-                &log(WARN, "I AM CONNECTED");
-            }
+            &log(WARN, "I AM CONNECTED");
         }
         else
         {
@@ -175,16 +170,21 @@ sub process
 
             &log(WARN, "SOCKET $strSocketFile");
 
-            my $oServer = IO::Socket::UNIX->new(Type => SOCK_STREAM, Local => $strSocketFile, Listen => 1);
+            my $oServer = logErrorResult(
+                IO::Socket::UNIX->new(Type => SOCK_STREAM, Local => $strSocketFile, Listen => 1), ERROR_ARCHIVE_TIMEOUT,
+                'unable to initialize ' . CMD_ARCHIVE_PUSH . " async process on socket: ${strSocketFile}");
             my $conn = $oServer->accept();
 
             &log(WARN, "CONNECTION FROM CLIENT");
+            $conn->close();
+            $oServer->close();
+            fileRemove($strSocketFile, true);
         }
     }
     # Else push synchronously
     else
     {
-        $self->push($ARGV[1], $bArchiveAsync);
+        $self->push($ARGV[1]);
     }
 
     # # Continue with batch processing
@@ -331,24 +331,20 @@ sub push
     (
         $strOperation,
         $strSourceFile,
-        $bAsync
     ) =
         logDebugParam
         (
             __PACKAGE__ . '->push', \@_,
             {name => 'strSourceFile'},
-            {name => 'bAsync'}
         );
 
     # Create the file object
     my $oFile = new pgBackRest::File
     (
         optionGet(OPTION_STANZA),
-        $bAsync ? optionGet(OPTION_SPOOL_PATH) : optionGet(OPTION_REPO_PATH),
-        protocolGet($bAsync ? NONE : BACKUP)
+        optionGet(OPTION_REPO_PATH),
+        protocolGet(BACKUP)
     );
-
-    lockStopTest();
 
     # Construct absolute path to the WAL file when it is relative
     $strSourceFile = walPath($strSourceFile, optionGet(OPTION_DB_PATH, false), commandGet());
@@ -357,7 +353,7 @@ sub push
     my $strDestinationFile = basename($strSourceFile);
 
     # Get the compress flag
-    my $bCompress = $bAsync ? false : optionGet(OPTION_COMPRESS);
+    my $bCompress = optionGet(OPTION_COMPRESS);
 
     # Determine if this is an archive file (don't do compression or checksum on .backup, .history, etc.)
     my $bArchiveFile = basename($strSourceFile) =~ /^[0-F]{24}(\.partial){0,1}$/ ? true : false;
@@ -369,18 +365,15 @@ sub push
     my $strArchiveId;
     my $strChecksum = undef;
 
-    if (!$bAsync)
+    if ($bArchiveFile)
     {
-        if ($bArchiveFile)
-        {
-            my ($strDbVersion, $ullDbSysId) = $self->walInfo($strSourceFile);
-            ($strArchiveId, $strChecksum) = $self->pushCheck(
-                $oFile, substr(basename($strSourceFile), 0, 24), $bPartial, $strSourceFile, $strDbVersion, $ullDbSysId);
-        }
-        else
-        {
-            $strArchiveId = $self->getCheck($oFile);
-        }
+        my ($strDbVersion, $ullDbSysId) = $self->walInfo($strSourceFile);
+        ($strArchiveId, $strChecksum) = $self->pushCheck(
+            $oFile, substr(basename($strSourceFile), 0, 24), $bPartial, $strSourceFile, $strDbVersion, $ullDbSysId);
+    }
+    else
+    {
+        $strArchiveId = $self->getCheck($oFile);
     }
 
     # Only copy the WAL segment if checksum is not defined.  If checksum is defined it means that the WAL segment already exists
@@ -394,16 +387,17 @@ sub push
         }
 
         # Copy the WAL segment
-        $oFile->copy(PATH_DB_ABSOLUTE, $strSourceFile,                          # Source type/file
-                     $bAsync ? PATH_BACKUP_ARCHIVE_OUT : PATH_BACKUP_ARCHIVE,   # Destination type
-                     ($bAsync ? '' : "${strArchiveId}/") . $strDestinationFile, # Destination file
-                     false,                                                     # Source is not compressed
-                     $bArchiveFile && $bCompress,                               # Destination compress is configurable
-                     undef, undef, undef,                                       # Unused params
-                     true,                                                      # Create path if it does not exist
-                     undef, undef,                                              # User and group
-                     $bArchiveFile,                                             # Append checksum if archive file
-                     $bAsync ? true : optionGet(OPTION_REPO_SYNC));             # Sync if spool, else check repo sync option
+        $oFile->copy(
+            PATH_DB_ABSOLUTE, $strSourceFile,                       # Source type/file
+            PATH_BACKUP_ARCHIVE,                                    # Destination type
+            "${strArchiveId}/${strDestinationFile}",                # Destination file
+            false,                                                  # Source is not compressed
+            $bArchiveFile && $bCompress,                            # Destination compress is configurable
+            undef, undef, undef,                                    # Unused params
+            true,                                                   # Create path if it does not exist
+            undef, undef,                                           # Default User and group
+            $bArchiveFile,                                          # Append checksum if archive file
+            optionGet(OPTION_REPO_SYNC));                           # Sync repo directories?
     }
 
     # Return from function and log return values if any
