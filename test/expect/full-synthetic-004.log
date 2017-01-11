@@ -135,7 +135,7 @@ P00  DEBUG:     Protocol::LocalProcess->queueJob(): iHostConfigIdx = 1, rParam =
 P00  DEBUG:     Protocol::LocalProcess->hostConnect: start local process: iHostConfigIdx = 1, iHostIdx = 0, iHostProcessIdx = 0, iProcessId = 1
 P01   INFO: local process 1 start for host db-1
 P00  DEBUG:     Protocol::LocalMaster->new(): iProcessIdx = 1, strCommand = [BACKREST-BIN] --buffer-size=16384 --command=backup --config=[TEST_PATH]/db-master/pgbackrest.conf --host-id=1 --lock-path=[TEST_PATH]/db-master/repo/lock --log-path=[TEST_PATH]/db-master/repo/log --process=1 --repo-path=[TEST_PATH]/db-master/repo --stanza=db --type=db local
-P00  DEBUG:     Protocol::CommonMaster->new(): iBufferMax = 16384, iCompressLevel = 6, iCompressLevelNetwork = 3, iProtocolTimeout = 1830, strCommand = [BACKREST-BIN] --buffer-size=16384 --command=backup --config=[TEST_PATH]/db-master/pgbackrest.conf --host-id=1 --lock-path=[TEST_PATH]/db-master/repo/lock --log-path=[TEST_PATH]/db-master/repo/log --process=1 --repo-path=[TEST_PATH]/db-master/repo --stanza=db --type=db local, strId = local-1, strName = local, strRemoteType = none
+P00  DEBUG:     Protocol::CommandMaster->new(): iBufferMax = 16384, iCompressLevel = 6, iCompressLevelNetwork = 3, iProtocolTimeout = 1830, strCommand = [BACKREST-BIN] --buffer-size=16384 --command=backup --config=[TEST_PATH]/db-master/pgbackrest.conf --host-id=1 --lock-path=[TEST_PATH]/db-master/repo/lock --log-path=[TEST_PATH]/db-master/repo/log --process=1 --repo-path=[TEST_PATH]/db-master/repo --stanza=db --type=db local, strId = local-1, strName = local, strRemoteType = none
 P00  DEBUG:     Protocol::LocalProcess->hostConnect=>: bResult = true
 P00  DEBUG:     Protocol::LocalProcess->init: init local process: iDirection = 1, iHostIdx = 0, iProcessId = 1, iQueueIdx = 0, iQueueLastIdx = 0
 P00  DEBUG:     Protocol::LocalProcess->init=>: bResult = true
@@ -185,7 +185,7 @@ P00  DEBUG:     BackupFile::backupManifestUpdate: save manifest: lManifestSaveCu
 P00  DEBUG:     Protocol::LocalProcess->process: job complete: iProcessId = 1, rResult = (1, 3, 23, 184473f470864e067ee3a22e64b47b0a1c356f29, [undef]), strKey = pg_data/PG_VERSION
 P00  DEBUG:     Protocol::LocalProcess->process: no jobs found, stop local: iHostIdx = 0, iProcessId = 1
 P01   INFO: local process 1 stop for db-1
-P00  DEBUG:     Protocol::CommonMaster->close=>: iExitStatus = 0
+P00  DEBUG:     Protocol::CommandMaster->close=>: iExitStatus = 0
 P01   INFO: backup file [TEST_PATH]/db-master/db/base/PG_VERSION (3B, 100%) checksum 184473f470864e067ee3a22e64b47b0a1c356f29
 P00  DEBUG:     BackupFile::backupManifestUpdate: save manifest: lManifestSaveCurrent = 3, lManifestSaveSize = 3
 P00  DEBUG:     Protocol::LocalProcess->process: all jobs complete
@@ -419,7 +419,7 @@ P00  DEBUG:     Protocol::LocalProcess->queueJob(): iHostConfigIdx = 1, rParam =
 P00  DEBUG:     Protocol::LocalProcess->hostConnect: start local process: iHostConfigIdx = 1, iHostIdx = 0, iHostProcessIdx = 0, iProcessId = 1
 P01   INFO: local process 1 start for host db-1
 P00  DEBUG:     Protocol::LocalMaster->new(): iProcessIdx = 1, strCommand = [BACKREST-BIN] --command=backup --config=[TEST_PATH]/db-master/pgbackrest.conf --host-id=1 --lock-path=[TEST_PATH]/db-master/repo/lock --log-path=[TEST_PATH]/db-master/repo/log --process=1 --repo-path=[TEST_PATH]/db-master/repo --stanza=db --type=db local
-P00  DEBUG:     Protocol::CommonMaster->new(): iBufferMax = 4194304, iCompressLevel = 6, iCompressLevelNetwork = 3, iProtocolTimeout = 1830, strCommand = [BACKREST-BIN] --command=backup --config=[TEST_PATH]/db-master/pgbackrest.conf --host-id=1 --lock-path=[TEST_PATH]/db-master/repo/lock --log-path=[TEST_PATH]/db-master/repo/log --process=1 --repo-path=[TEST_PATH]/db-master/repo --stanza=db --type=db local, strId = local-1, strName = local, strRemoteType = none
+P00  DEBUG:     Protocol::CommandMaster->new(): iBufferMax = 4194304, iCompressLevel = 6, iCompressLevelNetwork = 3, iProtocolTimeout = 1830, strCommand = [BACKREST-BIN] --command=backup --config=[TEST_PATH]/db-master/pgbackrest.conf --host-id=1 --lock-path=[TEST_PATH]/db-master/repo/lock --log-path=[TEST_PATH]/db-master/repo/log --process=1 --repo-path=[TEST_PATH]/db-master/repo --stanza=db --type=db local, strId = local-1, strName = local, strRemoteType = none
 P00  DEBUG:     Protocol::LocalProcess->hostConnect=>: bResult = true
 P00  DEBUG:     Protocol::LocalProcess->init: init local process: iDirection = 1, iHostIdx = 0, iProcessId = 1, iQueueIdx = 0, iQueueLastIdx = 0
 P00  DEBUG:     Protocol::LocalProcess->init=>: bResult = true
@@ -457,7 +457,7 @@ P01 DETAIL: checksum resumed file [TEST_PATH]/db-master/db/base/base/1/PG_VERSIO
 P00  DEBUG:     Protocol::LocalProcess->process: job complete: iProcessId = 1, rResult = (1, 3, 23, 184473f470864e067ee3a22e64b47b0a1c356f29, [undef]), strKey = pg_data/PG_VERSION
 P00  DEBUG:     Protocol::LocalProcess->process: no jobs found, stop local: iHostIdx = 0, iProcessId = 1
 P01   INFO: local process 1 stop for db-1
-P00  DEBUG:     Protocol::CommonMaster->close=>: iExitStatus = 0
+P00  DEBUG:     Protocol::CommandMaster->close=>: iExitStatus = 0
 P01   INFO: backup file [TEST_PATH]/db-master/db/base/PG_VERSION (3B, 100%) checksum 184473f470864e067ee3a22e64b47b0a1c356f29
 P00  DEBUG:     Protocol::LocalProcess->process: all jobs complete
 P00  DEBUG:     Backup->processManifest=>: lSizeTotal = 122918
@@ -729,7 +729,7 @@ P00  DEBUG:     Protocol::LocalProcess->queueJob(): iHostConfigIdx = 1, rParam =
 P00  DEBUG:     Protocol::LocalProcess->hostConnect: start local process: iHostConfigIdx = 1, iHostIdx = 0, iHostProcessIdx = 0, iProcessId = 1
 P01   INFO: local process 1 start for host backup-1
 P00  DEBUG:     Protocol::LocalMaster->new(): iProcessIdx = 1, strCommand = [BACKREST-BIN] --command=restore --config=[TEST_PATH]/db-master/pgbackrest.conf --host-id=1 --lock-path=[TEST_PATH]/db-master/repo/lock --log-path=[TEST_PATH]/db-master/repo/log --process=1 --repo-path=[TEST_PATH]/db-master/repo --stanza=db --type=backup local
-P00  DEBUG:     Protocol::CommonMaster->new(): iBufferMax = 4194304, iCompressLevel = 6, iCompressLevelNetwork = 3, iProtocolTimeout = 1830, strCommand = [BACKREST-BIN] --command=restore --config=[TEST_PATH]/db-master/pgbackrest.conf --host-id=1 --lock-path=[TEST_PATH]/db-master/repo/lock --log-path=[TEST_PATH]/db-master/repo/log --process=1 --repo-path=[TEST_PATH]/db-master/repo --stanza=db --type=backup local, strId = local-1, strName = local, strRemoteType = none
+P00  DEBUG:     Protocol::CommandMaster->new(): iBufferMax = 4194304, iCompressLevel = 6, iCompressLevelNetwork = 3, iProtocolTimeout = 1830, strCommand = [BACKREST-BIN] --command=restore --config=[TEST_PATH]/db-master/pgbackrest.conf --host-id=1 --lock-path=[TEST_PATH]/db-master/repo/lock --log-path=[TEST_PATH]/db-master/repo/log --process=1 --repo-path=[TEST_PATH]/db-master/repo --stanza=db --type=backup local, strId = local-1, strName = local, strRemoteType = none
 P00  DEBUG:     Protocol::LocalProcess->hostConnect=>: bResult = true
 P00  DEBUG:     Protocol::LocalProcess->init: init local process: iDirection = 1, iHostIdx = 0, iProcessId = 1, iQueueIdx = 0, iQueueLastIdx = 0
 P00  DEBUG:     Protocol::LocalProcess->init=>: bResult = true
@@ -777,7 +777,7 @@ P01 DETAIL: restore file [TEST_PATH]/db-master/db/base/base/1/PG_VERSION - exist
 P00  DEBUG:     Protocol::LocalProcess->process: job complete: iProcessId = 1, rResult = (0), strKey = pg_data/PG_VERSION
 P00  DEBUG:     Protocol::LocalProcess->process: no jobs found, stop local: iHostIdx = 0, iProcessId = 1
 P01   INFO: local process 1 stop for backup-1
-P00  DEBUG:     Protocol::CommonMaster->close=>: iExitStatus = 0
+P00  DEBUG:     Protocol::CommandMaster->close=>: iExitStatus = 0
 P00  DEBUG:     RestoreFile::restoreLog(): bCopy = false, bForce = false, bZero = false, iLocalId = 1, lModificationTime = [MODIFICATION-TIME-1], lSize = 3, lSizeCurrent = 122915, lSizeTotal = 122918, strChecksum = 184473f470864e067ee3a22e64b47b0a1c356f29, strDbFile = [TEST_PATH]/db-master/db/base/PG_VERSION
 P01 DETAIL: restore file [TEST_PATH]/db-master/db/base/PG_VERSION - exists and matches backup (3B, 100%) checksum 184473f470864e067ee3a22e64b47b0a1c356f29
 P00  DEBUG:     Protocol::LocalProcess->process: all jobs complete
@@ -1065,7 +1065,7 @@ P00  DEBUG:     File->linkCreate(): bHard = true, bPathCreate = true, bRelative 
 P00  DEBUG:     Protocol::LocalProcess->hostConnect: start local process: iHostConfigIdx = 1, iHostIdx = 0, iHostProcessIdx = 0, iProcessId = 1
 P01   INFO: local process 1 start for host db-1
 P00  DEBUG:     Protocol::LocalMaster->new(): iProcessIdx = 1, strCommand = [BACKREST-BIN] --command=backup --config=[TEST_PATH]/db-master/pgbackrest.conf --host-id=1 --lock-path=[TEST_PATH]/db-master/repo/lock --log-path=[TEST_PATH]/db-master/repo/log --process=1 --repo-path=[TEST_PATH]/db-master/repo --stanza=db --type=db local
-P00  DEBUG:     Protocol::CommonMaster->new(): iBufferMax = 4194304, iCompressLevel = 6, iCompressLevelNetwork = 3, iProtocolTimeout = 1830, strCommand = [BACKREST-BIN] --command=backup --config=[TEST_PATH]/db-master/pgbackrest.conf --host-id=1 --lock-path=[TEST_PATH]/db-master/repo/lock --log-path=[TEST_PATH]/db-master/repo/log --process=1 --repo-path=[TEST_PATH]/db-master/repo --stanza=db --type=db local, strId = local-1, strName = local, strRemoteType = none
+P00  DEBUG:     Protocol::CommandMaster->new(): iBufferMax = 4194304, iCompressLevel = 6, iCompressLevelNetwork = 3, iProtocolTimeout = 1830, strCommand = [BACKREST-BIN] --command=backup --config=[TEST_PATH]/db-master/pgbackrest.conf --host-id=1 --lock-path=[TEST_PATH]/db-master/repo/lock --log-path=[TEST_PATH]/db-master/repo/log --process=1 --repo-path=[TEST_PATH]/db-master/repo --stanza=db --type=db local, strId = local-1, strName = local, strRemoteType = none
 P00  DEBUG:     Protocol::LocalProcess->hostConnect=>: bResult = true
 P00  DEBUG:     Protocol::LocalProcess->init: init local process: iDirection = 1, iHostIdx = 0, iProcessId = 1, iQueueIdx = 0, iQueueLastIdx = 1
 P00  DEBUG:     Protocol::LocalProcess->init=>: bResult = true
@@ -1076,7 +1076,7 @@ P01   INFO: backup file [TEST_PATH]/db-master/db/base/badchecksum.txt (11B, 61%)
 P00  DEBUG:     Protocol::LocalProcess->process: job complete: iProcessId = 1, rResult = (1, 7, 27, d85de07d6421d90aa9191c11c889bfde43680f0f, {bAlign => 0, bValid => 0}), strKey = pg_tblspc/1/[TS_PATH-1]/16384/tablespace1.txt
 P00  DEBUG:     Protocol::LocalProcess->process: no jobs found, stop local: iHostIdx = 0, iProcessId = 1
 P01   INFO: local process 1 stop for db-1
-P00  DEBUG:     Protocol::CommonMaster->close=>: iExitStatus = 0
+P00  DEBUG:     Protocol::CommandMaster->close=>: iExitStatus = 0
 P01   INFO: backup file [TEST_PATH]/db-master/db/base/pg_tblspc/1/[TS_PATH-1]/16384/tablespace1.txt (7B, 100%) checksum d85de07d6421d90aa9191c11c889bfde43680f0f
 P00   WARN: page misalignment in file [TEST_PATH]/db-master/db/base/pg_tblspc/1/[TS_PATH-1]/16384/tablespace1.txt: file size 7 is not divisible by page size 8192
 P00  DEBUG:     Protocol::LocalProcess->process: all jobs complete
@@ -1381,7 +1381,7 @@ P00  DEBUG:     File->linkCreate(): bHard = true, bPathCreate = true, bRelative 
 P00  DEBUG:     Protocol::LocalProcess->hostConnect: start local process: iHostConfigIdx = 1, iHostIdx = 0, iHostProcessIdx = 0, iProcessId = 1
 P01   INFO: local process 1 start for host db-1
 P00  DEBUG:     Protocol::LocalMaster->new(): iProcessIdx = 1, strCommand = [BACKREST-BIN] --command=backup --config=[TEST_PATH]/db-master/pgbackrest.conf --host-id=1 --lock-path=[TEST_PATH]/db-master/repo/lock --log-path=[TEST_PATH]/db-master/repo/log --process=1 --repo-path=[TEST_PATH]/db-master/repo --stanza=db --type=db local
-P00  DEBUG:     Protocol::CommonMaster->new(): iBufferMax = 4194304, iCompressLevel = 6, iCompressLevelNetwork = 3, iProtocolTimeout = 1830, strCommand = [BACKREST-BIN] --command=backup --config=[TEST_PATH]/db-master/pgbackrest.conf --host-id=1 --lock-path=[TEST_PATH]/db-master/repo/lock --log-path=[TEST_PATH]/db-master/repo/log --process=1 --repo-path=[TEST_PATH]/db-master/repo --stanza=db --type=db local, strId = local-1, strName = local, strRemoteType = none
+P00  DEBUG:     Protocol::CommandMaster->new(): iBufferMax = 4194304, iCompressLevel = 6, iCompressLevelNetwork = 3, iProtocolTimeout = 1830, strCommand = [BACKREST-BIN] --command=backup --config=[TEST_PATH]/db-master/pgbackrest.conf --host-id=1 --lock-path=[TEST_PATH]/db-master/repo/lock --log-path=[TEST_PATH]/db-master/repo/log --process=1 --repo-path=[TEST_PATH]/db-master/repo --stanza=db --type=db local, strId = local-1, strName = local, strRemoteType = none
 P00  DEBUG:     Protocol::LocalProcess->hostConnect=>: bResult = true
 P00  DEBUG:     Protocol::LocalProcess->init: init local process: iDirection = 1, iHostIdx = 0, iProcessId = 1, iQueueIdx = 0, iQueueLastIdx = 2
 P00  DEBUG:     Protocol::LocalProcess->init=>: bResult = true
@@ -1397,7 +1397,7 @@ P00   WARN: page misalignment in file [TEST_PATH]/db-master/db/base/pg_tblspc/2/
 P00  DEBUG:     Protocol::LocalProcess->process: job complete: iProcessId = 1, rResult = (0, 7, 27, d85de07d6421d90aa9191c11c889bfde43680f0f, [undef]), strKey = pg_tblspc/1/[TS_PATH-1]/16384/tablespace1.txt
 P00  DEBUG:     Protocol::LocalProcess->process: no jobs found, stop local: iHostIdx = 0, iProcessId = 1
 P01   INFO: local process 1 stop for db-1
-P00  DEBUG:     Protocol::CommonMaster->close=>: iExitStatus = 0
+P00  DEBUG:     Protocol::CommandMaster->close=>: iExitStatus = 0
 P01 DETAIL: checksum resumed file [TEST_PATH]/db-master/db/base/pg_tblspc/1/[TS_PATH-1]/16384/tablespace1.txt (7B, 100%) checksum d85de07d6421d90aa9191c11c889bfde43680f0f
 P00  DEBUG:     Protocol::LocalProcess->process: all jobs complete
 P00  DEBUG:     Backup->processManifest=>: lSizeTotal = 25
