@@ -29,6 +29,8 @@ use pgBackRest::Db;
 use pgBackRest::DbVersion;
 use pgBackRest::File;
 use pgBackRest::FileCommon;
+use pgBackRest::Protocol::ArchivePushMaster;
+use pgBackRest::Protocol::ArchivePushMinion;
 use pgBackRest::Protocol::Common;
 use pgBackRest::Protocol::Protocol;
 
@@ -143,14 +145,19 @@ sub process
                 confess &log(ERROR, "unable to find socket after ${iWaitSeconds} second(s)", ERROR_ARCHIVE_TIMEOUT);
             }
 
-            my $oClient = logErrorResult(
+            my $oSocket = logErrorResult(
                 IO::Socket::UNIX->new(Type => SOCK_STREAM, Peer => $strSocketFile), ERROR_ARCHIVE_TIMEOUT,
                 'unable to connect to ' . CMD_ARCHIVE_PUSH . " async process socket: ${strSocketFile}");
 
-            my $oConn = new pgBackRest::Protocol::IO(
-                $oClient, $oClient, undef, undef, 'socket-1', 5, OPTION_DEFAULT_BUFFER_SIZE);
+            my $oMaster = new pgBackRest::Protocol::ArchivePushMaster($oSocket);
+            my $strWalSegment = '[undefined]';
 
-            &log(WARN, "I AM CONNECTED: " . $oConn->lineRead());
+            $strWalSegment = $oMaster->cmdExecute(OP_ARCHIVE_PUSH_ASYNC, ['000000010000000100000001'], true);
+
+            # my $oConn = new pgBackRest::Protocol::IO(
+            #     $oClient, $oClient, undef, undef, 'socket-1', 5, OPTION_DEFAULT_BUFFER_SIZE);
+
+            &log(WARN, "I AM CONNECTED: " . $strWalSegment);
         }
         else
         {
@@ -176,15 +183,14 @@ sub process
             my $oServer = logErrorResult(
                 IO::Socket::UNIX->new(Type => SOCK_STREAM, Local => $strSocketFile, Listen => 1), ERROR_ARCHIVE_TIMEOUT,
                 'unable to initialize ' . CMD_ARCHIVE_PUSH . " async process on socket: ${strSocketFile}");
-            my $conn = $oServer->accept();
+            my $oSocket = $oServer->accept();
 
             &log(WARN, "CONNECTION FROM CLIENT");
 
-            my $oConn = new pgBackRest::Protocol::IO(
-                $conn, $conn, undef, undef, 'socket-1', 5, OPTION_DEFAULT_BUFFER_SIZE);
-            $oConn->lineWrite("A MESSAGE JUST FOR YOU, DEAR CLIENT!!!");
+            my $oMinion = new pgBackRest::Protocol::ArchivePushMinion($oSocket);
+            $oMinion->process();
 
-            $conn->close();
+            $oSocket->close();
             $oServer->close();
             fileRemove($strSocketFile, true);
         }
