@@ -107,8 +107,11 @@ sub run
         # Test missing archive.info file
         &log(INFO, '    test archive.info missing');
         my ($strArchiveFile1, $strSourceFile1) = $self->archiveGenerate($oFile, $strXlogPath, 1, 1, WAL_VERSION_94);
+
         $oHostDbMaster->executeSimple($strCommand . " ${strSourceFile1}",
             {iExpectedExitStatus => ERROR_FILE_MISSING, oLogTest => $self->expect()});
+
+                exit 0;
 
         # Create the archive info file
         $oHostBackup->stanzaCreate('create required data for stanza',

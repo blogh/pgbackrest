@@ -77,9 +77,6 @@ sub process
     my $iResult = 0;
     my $strResultMessage = undef;
 
-    # Record the start time to wait for the archive.info file to be written
-    my $oWait = waitInit($iArchiveTimeout);
-
     my $strArchiveId = undef;
     my $strArchiveFile = undef;
     my $strWalSegment = undef;

@@ -13,6 +13,7 @@ use Exporter qw(import);
     our @EXPORT = qw();
 use Fcntl qw(SEEK_CUR O_RDONLY O_WRONLY O_CREAT);
 use File::Basename qw(dirname basename);
+use IO::Socket::UNIX;
 use POSIX qw(setsid);
 use Scalar::Util qw(blessed);
 
@@ -110,6 +111,7 @@ sub process
 
         # Create a lock file to make sure async archive-push does not run more than once
         my $bClient = true;
+        my $strSocketFile = optionGet(OPTION_LOCK_PATH) . '/archive-async-socket';
 
         if (!lockAcquire(commandGet(), false))
         {
@@ -117,27 +119,67 @@ sub process
         }
         else
         {
+            # Remove the old socket file
+            fileRemove($strSocketFile);
             $bClient = fork() == 0 ? false : true;
         }
 
-        if (!$bClient)
+        if ($bClient)
+        {
+            my $iWaitSeconds = 10;
+            my $oWait = waitInit($iWaitSeconds);
+
+            # Wait for the socket file to appear
+            my $bExists = false;
+
+            do
+            {
+                $bExists = fileExists($strSocketFile);
+            }
+            while (!$bExists && waitMore($oWait));
+
+            if (!$bExists)
+            {
+                confess &log(ERROR, "unable to find socket after ${iWaitSeconds} second(s)", ERROR_ARCHIVE_TIMEOUT);
+            }
+
+            my $oClient = IO::Socket::UNIX->new(Type => SOCK_STREAM, Peer => $strSocketFile);
+
+            if (!defined($oClient))
+            {
+                confess &log(ERROR, "CLIENT NOT CONNECTED: " . $!);
+            }
+            else
+            {
+                &log(WARN, "I AM CONNECTED");
+            }
+        }
+        else
         {
             chdir '/'
                 or confess "chdir() failed: $!";
 
+            # close stdin/stdout
+            open STDIN, '<', '/dev/null'
+                or confess "Couldn't close stdin: $!";
+            open STDOUT, '>', '/dev/null'
+                or confess "Couldn't close stdout: $!";
+            open STDERR, '>', '/dev/null'
+                or confess "Couldn't close stderr: $!";
+
             # create new session group
             setsid() or confess("setsid() failed: $!");
 
-            # close stdin/stdout
-            open STDIN, '<', '/dev/null'
-                or confess "Couldn't close standard input: $!";
-            open STDOUT, '>', '/dev/null'
-                or confess "Couldn't close standard output: $!";
+            # Open the log file
+            logFileSet(optionGet(OPTION_LOG_PATH) . '/' . optionGet(OPTION_STANZA) . '-archive-async');
 
-            sleep(30);
+            &log(WARN, "SOCKET $strSocketFile");
+
+            my $oServer = IO::Socket::UNIX->new(Type => SOCK_STREAM, Local => $strSocketFile, Listen => 1);
+            my $conn = $oServer->accept();
+
+            &log(WARN, "CONNECTION FROM CLIENT");
         }
-
-        &log(WARN, "I AM A " . ($bClient ? 'CLIENT' : 'SERVER'));
     }
     # Else push synchronously
     else
