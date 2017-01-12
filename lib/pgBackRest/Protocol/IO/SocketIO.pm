@@ -31,10 +31,7 @@ sub new
         logDebugParam
         (
             __PACKAGE__ . '->new', \@_,
-            {name => 'hndIn', required => false, trace => true},
-            {name => 'hndOut', required => false, trace => true},
-            {name => 'hndErr', required => false, trace => true},
-            {name => 'pId', required => false, trace => true},
+            {name => 'oSocket', trace => true},
             {name => 'strId', required => false, trace => true},
             {name => 'iProtocolTimeout', trace => true},
             {name => 'iBufferMax', trace => true}

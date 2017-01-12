@@ -16,7 +16,7 @@ use pgBackRest::Common::Ini;
 use pgBackRest::Common::Log;
 use pgBackRest::Common::String;
 use pgBackRest::Protocol::CommonMinion;
-use pgBackRest::Protocol::IO;
+use pgBackRest::Protocol::IO::SocketIO;
 use pgBackRest::Version;
 
 ####################################################################################################################################
@@ -53,7 +53,7 @@ sub new
     # Create the class hash
     my $self = $class->SUPER::new(
         $strName, $strCommand,
-        new pgBackRest::Protocol::IO($oSocket, $oSocket, undef, undef, undef, $iProtocolTimeout, $iBufferMax),
+        new pgBackRest::Protocol::IO::SocketIO($oSocket, undef, $iProtocolTimeout, $iBufferMax),
         $iBufferMax, $iCompressLevel, $iCompressLevelNetwork, $iProtocolTimeout);
     bless $self, $class;
 
