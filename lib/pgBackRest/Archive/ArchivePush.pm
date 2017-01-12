@@ -11,26 +11,19 @@ use English '-no_match_vars';
 
 use Exporter qw(import);
     our @EXPORT = qw();
-use Fcntl qw(SEEK_CUR O_RDONLY O_WRONLY O_CREAT);
+use Fcntl qw(SEEK_CUR O_RDONLY);
 use File::Basename qw(dirname basename);
-use IO::Socket::UNIX;
-use POSIX qw(setsid);
-use Scalar::Util qw(blessed);
 
 use pgBackRest::Common::Exception;
 use pgBackRest::Common::Lock;
 use pgBackRest::Common::Log;
 use pgBackRest::Archive::ArchiveCommon;
 use pgBackRest::Archive::ArchiveInfo;
-use pgBackRest::Common::String;
 use pgBackRest::Common::Wait;
 use pgBackRest::Config::Config;
-use pgBackRest::Db;
 use pgBackRest::DbVersion;
 use pgBackRest::File;
 use pgBackRest::FileCommon;
-use pgBackRest::Protocol::ArchivePushMaster;
-use pgBackRest::Protocol::ArchivePushMinion;
 use pgBackRest::Protocol::Common;
 use pgBackRest::Protocol::Protocol;
 
@@ -74,167 +67,29 @@ sub process
         confess &log(ERROR, 'wal segment to push required', ERROR_PARAM_REQUIRED);
     }
 
-    my $strWalSegmentFile = basename($strWalSegment);
+    my $strWalFile = basename($strWalSegment);
 
     # Check for a stop lock
     lockStopTest();
 
-    # Only do async archiving when this file being archived is a WAL segment, otherwise do it synchronously
-    my $bArchiveAsync = optionGet(OPTION_ARCHIVE_ASYNC) && $strWalSegmentFile =~ '^[0-F]{24}$';
-
-    # If logging locally then create the stop archiving file name
-    # my $strStopFile;
-    #
-    # if ($bArchiveAsync)
-    # {
-    #     $strStopFile = optionGet(OPTION_SPOOL_PATH) . '/stop/' . optionGet(OPTION_STANZA) . "-archive.stop";
-    # }
-
-    # If an archive file is defined, then push it
-    my $oException = undef;
+    # Only do async archiving when the file being archived is a WAL segment, otherwise do it synchronously.  In the async code it
+    # would be very hard to decide when it is appropriate to archive timeline, backup, and partial files.
+    my $bArchiveAsync = optionGet(OPTION_ARCHIVE_ASYNC) && $strWalFile =~ '^[0-F]{24}$';
 
     # Start the async process and wait for WAL to complete
     if ($bArchiveAsync)
     {
-        # If the stop file exists then discard the archive log
-        # if ($bArchiveAsync)
-        # {
-        #     if (-e $strStopFile)
-        #     {
-        #         &log(ERROR, "discarding " . basename($ARGV[1]) .
-        #                     " due to the archive store max size exceeded" .
-        #                     " - remove the archive stop file (${strStopFile}) to resume archiving" .
-        #                     " and be sure to take a new backup as soon as possible");
-        #         return 0;
-        #     }
-        # }
+        &log(INFO, "push WAL segment ${strWalFile} asynchronously");
 
-        &log(INFO, "push WAL segment ${strWalSegmentFile} asynchronously");
-
-        # Create a lock file to make sure async archive-push does not run more than once
-        my $bClient = true;
-        my $strSocketFile = optionGet(OPTION_LOCK_PATH) . '/archive-push.socket';
-
-        if (lockAcquire(commandGet(), false))
-        {
-            # Remove the old socket file
-            fileRemove($strSocketFile, true);
-            $bClient = fork() == 0 ? false : true;
-        }
-        else
-        {
-            logDebugMisc($strOperation, 'async archive-push process is already running');
-        }
-
-        if ($bClient)
-        {
-            my $iWaitSeconds = 10;
-            my $oWait = waitInit($iWaitSeconds);
-
-            # Wait for the socket file to appear
-            my $bExists = false;
-
-            do
-            {
-                $bExists = fileExists($strSocketFile);
-            }
-            while (!$bExists && waitMore($oWait));
-
-            if (!$bExists)
-            {
-                confess &log(ERROR, "unable to find socket after ${iWaitSeconds} second(s)", ERROR_ARCHIVE_TIMEOUT);
-            }
-
-            my $oSocket = logErrorResult(
-                IO::Socket::UNIX->new(Type => SOCK_STREAM, Peer => $strSocketFile), ERROR_ARCHIVE_TIMEOUT,
-                'unable to connect to ' . CMD_ARCHIVE_PUSH . " async process socket: ${strSocketFile}");
-
-            my $oMaster = new pgBackRest::Protocol::ArchivePushMaster($oSocket);
-            my $strWalSegment = '[undefined]';
-
-            $strWalSegment = $oMaster->cmdExecute(OP_ARCHIVE_PUSH_ASYNC, ['000000010000000100000001'], true);
-
-            # my $oConn = new pgBackRest::Protocol::IO(
-            #     $oClient, $oClient, undef, undef, 'socket-1', 5, OPTION_DEFAULT_BUFFER_SIZE);
-
-            &log(WARN, "I AM CONNECTED: " . $strWalSegment);
-        }
-        else
-        {
-            chdir '/'
-                or confess "chdir() failed: $!";
-
-            # close stdin/stdout
-            open STDIN, '<', '/dev/null'
-                or confess "Couldn't close stdin: $!";
-            open STDOUT, '>', '/dev/null'
-                or confess "Couldn't close stdout: $!";
-            open STDERR, '>', '/dev/null'
-                or confess "Couldn't close stderr: $!";
-
-            # create new session group
-            setsid() or confess("setsid() failed: $!");
-
-            # Open the log file
-            logFileSet(optionGet(OPTION_LOG_PATH) . '/' . optionGet(OPTION_STANZA) . '-archive-async');
-
-            &log(WARN, "SOCKET $strSocketFile");
-
-            my $oServer = logErrorResult(
-                IO::Socket::UNIX->new(Type => SOCK_STREAM, Local => $strSocketFile, Listen => 1), ERROR_ARCHIVE_TIMEOUT,
-                'unable to initialize ' . CMD_ARCHIVE_PUSH . " async process on socket: ${strSocketFile}");
-            my $oSocket = $oServer->accept();
-
-            &log(WARN, "CONNECTION FROM CLIENT");
-
-            my $oMinion = new pgBackRest::Protocol::ArchivePushMinion($oSocket);
-            $oMinion->process();
-
-            $oSocket->close();
-            $oServer->close();
-            fileRemove($strSocketFile, true);
-        }
+        # Load module dynamically
+        require pgBackRest::Archive::ArchivePushAsync;
+        new pgBackRest::Archive::ArchivePushAsync(dirname($strWalSegment), $strWalFile)->process();
     }
     # Else push synchronously
     else
     {
-        $self->push($ARGV[1]);
+        $self->push($strWalSegment);
     }
-
-    # # Continue with batch processing
-    # if ($bBatch)
-    # {
-    #     # Start the async archive push
-    #     logDebugMisc($strOperation, 'start async archive-push');
-    #
-    #     # Open the log file
-    #     logFileSet(optionGet(OPTION_LOG_PATH) . '/' . optionGet(OPTION_STANZA) . '-archive-async');
-    #
-    #     # Call the archive_xfer function and continue to loop as long as there are files to process
-    #     my $iLogTotal;
-    #
-    #     while (!defined($iLogTotal) || $iLogTotal > 0)
-    #     {
-    #         $iLogTotal = $self->xfer(optionGet(OPTION_SPOOL_PATH) . "/archive/" .
-    #                                  optionGet(OPTION_STANZA) . "/out", $strStopFile);
-    #
-    #         if ($iLogTotal > 0)
-    #         {
-    #             logDebugMisc($strOperation, "transferred ${iLogTotal} WAL segment" .
-    #                          ($iLogTotal > 1 ? 's' : '') . ', calling Archive->xfer() again');
-    #         }
-    #         else
-    #         {
-    #             logDebugMisc($strOperation, 'transfer found 0 WAL segments - exiting');
-    #         }
-    #     }
-    #
-    #     lockRelease();
-    # }
-    # elsif (defined($oException))
-    # {
-    #     confess $oException;
-    # }
 
     # Return from function and log return values if any
     return logDebugReturn
