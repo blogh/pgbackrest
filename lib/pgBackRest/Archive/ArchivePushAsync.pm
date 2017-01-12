@@ -135,15 +135,8 @@ sub process
             IO::Socket::UNIX->new(Type => SOCK_STREAM, Peer => $strSocketFile), ERROR_ARCHIVE_TIMEOUT,
             'unable to connect to ' . CMD_ARCHIVE_PUSH . " async process socket: ${strSocketFile}");
 
-        my $oMaster = new pgBackRest::Protocol::ArchivePushMaster($oSocket);
-        my $strWalSegment = '[undefined]';
+        $self->processClient(new pgBackRest::Protocol::ArchivePushMaster($oSocket));
 
-        $strWalSegment = $oMaster->cmdExecute(OP_ARCHIVE_PUSH_ASYNC, ['000000010000000100000001'], true);
-
-        # my $oConn = new pgBackRest::Protocol::IO(
-        #     $oClient, $oClient, undef, undef, 'socket-1', 5, OPTION_DEFAULT_BUFFER_SIZE);
-
-        &log(WARN, "I AM CONNECTED: " . $strWalSegment);
     }
     else
     {
@@ -173,8 +166,7 @@ sub process
 
         &log(WARN, "CONNECTION FROM CLIENT");
 
-        my $oMinion = new pgBackRest::Protocol::ArchivePushMinion($oSocket);
-        $oMinion->process();
+        $self->processServer(new pgBackRest::Protocol::ArchivePushMinion($oSocket));
 
         $oSocket->close();
         $oServer->close();
@@ -222,6 +214,97 @@ sub process
         $strOperation,
         {name => 'iResult', value => 0, trace => true}
     );
+}
+
+####################################################################################################################################
+# processServer
+####################################################################################################################################
+sub processServer
+{
+    my $self = shift;
+
+    # Assign function parameters, defaults, and log debug info
+    my
+    (
+        $strOperation,
+        $oMinion,
+    ) =
+        logDebugParam
+        (
+            __PACKAGE__ . '->processServer', \@_,
+            {name => 'oMinion'},
+        );
+
+    $oMinion->process();
+
+    # Return from function and log return values if any
+    return logDebugReturn($strOperation);
+}
+
+####################################################################################################################################
+# processClient
+####################################################################################################################################
+sub processClient
+{
+    my $self = shift;
+
+    # Assign function parameters, defaults, and log debug info
+    my
+    (
+        $strOperation,
+        $oMaster,
+    ) =
+        logDebugParam
+        (
+            __PACKAGE__ . '->processServer', \@_,
+            {name => 'oMinion'},
+        );
+
+    my $strWalSegment = $oMaster->cmdExecute(OP_ARCHIVE_PUSH_ASYNC, ['000000010000000100000001'], true);
+    &log(WARN, "I AM CONNECTED: " . $strWalSegment);
+
+    # Return from function and log return values if any
+    return logDebugReturn($strOperation);
+}
+
+####################################################################################################################################
+# readyList
+####################################################################################################################################
+sub readyList
+{
+    my $self = shift;
+
+    # Assign function parameters, defaults, and log debug info
+    my
+    (
+        $strOperation,
+    ) =
+        logDebugParam
+        (
+            __PACKAGE__ . '->readyList', \@_,
+        );
+
+    # Read the ready files
+    my $strWalStatusPath = "$self->{strWalPath}/archive_status";
+    my @stryReadyFile = fileList($strWalStatusPath, '^.*\.ready$');
+
+    &log(INFO, 'found ' . @stryReadyFile . ' .ready files');
+
+    # Generate a list of new files
+    my @stryNewReadyFile;
+
+    foreach my $strReadyFile (@stryReadyFile)
+    {
+        if (!defined($self->{hWalState}{$strReadyFile}))
+        {
+            &log(INFO, "found new ready file ${strReadyFile}");
+            push(@stryNewReadyFile, $strReadyFile);
+            $self->{hWalState}{$strReadyFile} = false;
+        }
+    }
+
+    # Return from function and log return values if any
+    return logDebugReturn($strOperation);
 }
 
 ####################################################################################################################################

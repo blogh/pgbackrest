@@ -199,6 +199,11 @@ my $oTestDef =
                     &TESTDEF_EXPECT => false,
                 },
                 {
+                    &TESTDEF_TEST_NAME => 'push-unit',
+                    &TESTDEF_TEST_TOTAL => 1,
+                    &TESTDEF_EXPECT => false,
+                },
+                {
                     &TESTDEF_TEST_NAME => 'push',
                     &TESTDEF_TEST_TOTAL => 8
                 },
