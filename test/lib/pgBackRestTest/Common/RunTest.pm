@@ -256,7 +256,7 @@ sub testResult
     my $fnSub = shift;
     my $strExpected = shift;
 
-    my $strActual = $fnSub->();
+    my $strActual = ${logDebugBuild($fnSub->())};
 
     if (!defined($strExpected) && defined($strActual) || defined($strExpected) && !defined($strActual) ||
         $strActual ne $strExpected)

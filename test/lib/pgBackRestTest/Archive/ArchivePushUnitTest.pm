@@ -114,16 +114,25 @@ sub run
     my $self = shift;
 
     my $oPushAsync = new pgBackRest::Archive::ArchivePushAsync($self->{strWalPath}, '000000010000000100000001');
+    my $iMajor = 1;
+    my $iMinor = 1;
 
     #-------------------------------------------------------------------------------------------------------------------------------
     if ($self->begin("ArchivePushAsync->readyList"))
     {
         $self->clean();
 
-        my ($strWalSegment) = $self->archiveGenerate($self->{oFile}, $self->{strWalPath}, 1, 1, WAL_VERSION_94);
-        fileStringWrite("$self->{strWalStatusPath}/${strWalSegment}.ready", 'DUDE');
+        my ($strWalSegment) = $self->archiveGenerate($self->{oFile}, $self->{strWalPath}, $iMajor, $iMinor++, WAL_VERSION_94);
+        fileStringWrite("$self->{strWalStatusPath}/${strWalSegment}.ready", 'TEST');
+        ($strWalSegment) = $self->archiveGenerate($self->{oFile}, $self->{strWalPath}, $iMajor, $iMinor++, WAL_VERSION_94);
+        fileStringWrite("$self->{strWalStatusPath}/${strWalSegment}.ready", 'TEST');
 
-        $oPushAsync->readyList();
+        $self->testResult(sub {$oPushAsync->readyList()}, '(000000010000000100000001, 000000010000000100000002)');
+
+        ($strWalSegment) = $self->archiveGenerate($self->{oFile}, $self->{strWalPath}, $iMajor, $iMinor++, WAL_VERSION_94);
+        fileStringWrite("$self->{strWalStatusPath}/${strWalSegment}.ready", 'TEST');
+
+        $self->testResult(sub {$oPushAsync->readyList()}, '(000000010000000100000003)');
     }
 
     # my $strArchiveChecksum = '72b9da071c13957fb4ca31f05dbd5c644297c2f7';

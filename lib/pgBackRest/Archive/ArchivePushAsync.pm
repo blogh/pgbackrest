@@ -295,6 +295,8 @@ sub readyList
 
     foreach my $strReadyFile (@stryReadyFile)
     {
+        $strReadyFile = substr($strReadyFile, 0, length($strReadyFile) - length('.ready'));
+
         if (!defined($self->{hWalState}{$strReadyFile}))
         {
             &log(INFO, "found new ready file ${strReadyFile}");
@@ -303,8 +305,11 @@ sub readyList
         }
     }
 
-    # Return from function and log return values if any
-    return logDebugReturn($strOperation);
+    return logDebugReturn
+    (
+        $strOperation,
+        {name => 'stryWalFile', value => \@stryNewReadyFile, ref => true}
+    );
 }
 
 ####################################################################################################################################
