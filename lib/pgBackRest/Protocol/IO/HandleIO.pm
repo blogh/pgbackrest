@@ -136,10 +136,6 @@ sub error
     my $strMessage = shift;
     my $strSubMessage = shift;
 
-    # Generate the default error message
-    my $strError =
-        defined($iCode) ? ($strMessage . (defined($strSubMessage) && $strSubMessage ne '' ? ": ${strSubMessage}" : '')) : undef;
-
     # Record the start time and set initial sleep interval
     my $oWait = waitInit(defined($iCode) ? IO_ERROR_TIMEOUT : 0);
 
@@ -160,6 +156,9 @@ sub error
             {
                 # Get the exit status so we can report it later
                 my $iExitStatus = ${^CHILD_ERROR_NATIVE} >> 8;
+
+                # Initialize error
+                my $strError = undef;
 
                 # If the error stream is already closed then we can't fetch the real error
                 if (!defined($self->{hErr}))
@@ -215,7 +214,7 @@ sub error
     # Confess default error
     if (defined($iCode))
     {
-        confess &log(ERROR, $strError, $iCode);
+        confess &log(ERROR, ($strMessage . (defined($strSubMessage) && $strSubMessage ne '' ? ": ${strSubMessage}" : '')), $iCode);
     }
 }
 
