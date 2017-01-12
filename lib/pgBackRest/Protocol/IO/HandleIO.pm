@@ -132,11 +132,12 @@ sub processId
 sub error
 {
     my $self = shift;
-    my $fWaitTime = shift;
-    my $bReportError = shift;
+    my $iCode = shift;
+    my $strMessage = shift;
+    my $strSubMessage = shift;
 
     # Record the start time and set initial sleep interval
-    my $oWait = waitInit(defined($fWaitTime) ? $fWaitTime : IO_ERROR_TIMEOUT);
+    my $oWait = waitInit(defined($iCode) ? IO_ERROR_TIMEOUT : 0);
 
     if (defined($self->{pId}))
     {
@@ -156,67 +157,65 @@ sub error
                 # Get the exit status so we can report it later
                 my $iExitStatus = ${^CHILD_ERROR_NATIVE} >> 8;
 
-                # Sometimes we'll expect an error so it won't always be reported
-                if (!defined($bReportError) || $bReportError)
+                # Initialize error
+                my $strError = undef;
+
+                # If the error stream is already closed then we can't fetch the real error
+                if (!defined($self->{hErr}))
                 {
-                    # Default error
-                    my $strError = undef;
-
-                    # If the error stream is already closed then we can't fetch the real error
-                    if (!defined($self->{hErr}))
+                    $strError = 'no error captured because stderr is already closed';
+                }
+                # Get whatever text we can from the error stream
+                else
+                {
+                    eval
                     {
-                        $strError = 'no error captured because stderr is already closed';
-                    }
-                    # Get whatever text we can from the error stream
-                    else
-                    {
-                        eval
+                        while (my $strLine = $self->lineRead(0, false, false))
                         {
-                            while (my $strLine = $self->lineRead(0, false, false))
+                            if (defined($strError))
                             {
-                                if (defined($strError))
-                                {
-                                    $strError .= "\n";
-                                }
-
-                                $strError .= $strLine;
+                                $strError .= "\n";
                             }
 
-                            return true;
+                            $strError .= $strLine;
                         }
-                        or do
-                        {
-                            if (!defined($strError))
-                            {
-                                my $strException = $EVAL_ERROR;
 
-                                $strError =
-                                    'no output from terminated process' .
-                                    (defined($strException) && ${strException} ne '' ? ": ${strException}" : '');
-                            }
-                        };
+                        return true;
                     }
+                    or do
+                    {
+                        if (!defined($strError))
+                        {
+                            my $strException = $EVAL_ERROR;
 
-                    $self->{pId} = undef;
-                    $self->{hIn} = undef;
-                    $self->{hOut} = undef;
-                    $self->{hErr} = undef;
-
-                    # Finally, confess the error
-                    confess &log(
-                        ERROR, 'remote process terminated on ' . $self->{strId} . ' host' .
-                        ($iExitStatus < ERROR_MINIMUM || $iExitStatus > ERROR_MAXIMUM ? " (exit status ${iExitStatus})" : '') .
-                        ': ' . (defined($strError) ? $strError : 'no error on stderr'),
-                        $iExitStatus >= ERROR_MINIMUM && $iExitStatus <= ERROR_MAXIMUM ? $iExitStatus : ERROR_HOST_CONNECT);
+                            $strError =
+                                'no output from terminated process' .
+                                (defined($strException) && ${strException} ne '' ? ": ${strException}" : '');
+                        }
+                    };
                 }
 
-                return true;
+                $self->{pId} = undef;
+                $self->{hIn} = undef;
+                $self->{hOut} = undef;
+                $self->{hErr} = undef;
+
+                # Finally, confess the error
+                confess &log(
+                    ERROR, 'remote process terminated on ' . $self->{strId} . ' host' .
+                    ($iExitStatus < ERROR_MINIMUM || $iExitStatus > ERROR_MAXIMUM ? " (exit status ${iExitStatus})" : '') .
+                    ': ' . (defined($strError) ? $strError : 'no error on stderr'),
+                    $iExitStatus >= ERROR_MINIMUM && $iExitStatus <= ERROR_MAXIMUM ? $iExitStatus : ERROR_HOST_CONNECT);
             }
         }
         while (waitMore($oWait));
     }
 
-    return false;
+    # Confess default error
+    if (defined($iCode))
+    {
+        confess &log(ERROR, ($strMessage . (defined($strSubMessage) && $strSubMessage ne '' ? ": ${strSubMessage}" : '')), $iCode);
+    }
 }
 
 1;
