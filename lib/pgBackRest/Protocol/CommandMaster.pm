@@ -16,7 +16,7 @@ use pgBackRest::Common::Exception;
 use pgBackRest::Common::Ini;
 use pgBackRest::Common::Log;
 use pgBackRest::Protocol::Common;
-use pgBackRest::Protocol::IO::HandleIO;
+use pgBackRest::Protocol::IO::ProcessIO;
 use pgBackRest::Version;
 
 ####################################################################################################################################
@@ -59,7 +59,7 @@ sub new
     }
 
     # Execute the command
-    my $oIO = pgBackRest::Protocol::IO::HandleIO->new3($strId, $strCommand, $iProtocolTimeout, $iBufferMax);
+    my $oIO = pgBackRest::Protocol::IO::ProcessIO->new3($strId, $strCommand, $iProtocolTimeout, $iBufferMax);
 
     # Create the class hash
     my $self = $class->SUPER::new(

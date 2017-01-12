@@ -1,7 +1,7 @@
 ####################################################################################################################################
-# PROTOCOL HANDLE IO MODULE
+# PROTOCOL PROCESS IO MODULE
 ####################################################################################################################################
-package pgBackRest::Protocol::IO::HandleIO;
+package pgBackRest::Protocol::IO::ProcessIO;
 use parent 'pgBackRest::Protocol::IO::IO';
 
 use strict;
@@ -22,12 +22,7 @@ use pgBackRest::Common::Exception;
 use pgBackRest::Common::Log;
 use pgBackRest::Common::String;
 use pgBackRest::Common::Wait;
-
-####################################################################################################################################
-# Amount of time to attempt to retrieve errors when a process terminates unexpectedly
-####################################################################################################################################
-use constant IO_ERROR_TIMEOUT                                                => 5;
-    push @EXPORT, qw(IO_ERROR_TIMEOUT);
+use pgBackRest::Protocol::IO::IO;
 
 ####################################################################################################################################
 # CONSTRUCTOR
@@ -127,7 +122,8 @@ sub processId
 ####################################################################################################################################
 # error
 #
-# See if the remote process has terminated unexpectedly.
+# See if the remote process has terminated unexpectedly and attempt to retrieve error information from stderr.  If that fails then
+# call parent error() method to report error.
 ####################################################################################################################################
 sub error
 {
@@ -212,10 +208,7 @@ sub error
     }
 
     # Confess default error
-    if (defined($iCode))
-    {
-        confess &log(ERROR, ($strMessage . (defined($strSubMessage) && $strSubMessage ne '' ? ": ${strSubMessage}" : '')), $iCode);
-    }
+    $self->SUPER::error($iCode, $strMessage, $iCode);
 }
 
 1;

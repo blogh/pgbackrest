@@ -443,4 +443,23 @@ sub bufferWrite
     }
 }
 
+####################################################################################################################################
+# error
+#
+# Format and confess error.
+####################################################################################################################################
+sub error
+{
+    my $self = shift;
+    my $iCode = shift;
+    my $strMessage = shift;
+    my $strSubMessage = shift;
+
+    # Confess default error
+    if (defined($iCode))
+    {
+        confess &log(ERROR, ($strMessage . (defined($strSubMessage) && $strSubMessage ne '' ? ": ${strSubMessage}" : '')), $iCode);
+    }
+}
+
 1;
