@@ -218,25 +218,16 @@ sub lineRead
                 if (!defined($iBufferRead))
                 {
                     # Store the error message
-                    my $strError = defined($!) && $! ne '' ? $! : undef;
-
-                    # Check if the remote process exited unexpectedly
-                    $self->error();
-
-                    # Raise the error
-                    confess &log(ERROR, 'unable to read line' . (defined($strError) ? ": ${strError}" : ''));
+                    $self->error(ERROR_FILE_READ, 'unable to read line', $!);
                 }
 
                 # Error on EOF (unless reading from error stream)
                 if ($iBufferRead == 0 && (!defined($bIgnoreEOF) || !$bIgnoreEOF))
                 {
-                    # Check if the remote process exited unexpectedly
-                    $self->error();
-
                     # Only error if reading from the input stream
                     if (!defined($bError) || $bError)
                     {
-                        confess &log(ERROR, "unexpected EOF", ERROR_FILE_READ);
+                        $self->error(ERROR_FILE_READ, 'unexpected EOF');
                     }
                     # If reading from error stream then just return undef
                     else
@@ -255,8 +246,7 @@ sub lineRead
             }
             else
             {
-                # Check if the remote process exited unexpectedly
-                $self->error(0);
+                $self->error();
             }
 
             # Calculate time remaining before timeout
@@ -318,7 +308,7 @@ sub lineWrite
 
     # Check if the process has exited abnormally (doesn't seem like we should need this, but the next syswrite does a hard
     # abort if the remote process has already closed)
-    $self->error(0);
+    $self->error();
 
     # Write the data
     my $iLineOut = syswrite(defined($hOut) ? $hOut : $self->{hOut}, (defined($strBuffer) ? $strBuffer : '') . "\n");
@@ -326,9 +316,7 @@ sub lineWrite
     if (!defined($iLineOut) || $iLineOut != (defined($strBuffer) ? length($strBuffer) : 0) + 1)
     {
         # Check if the process has exited abnormally
-        $self->errors();
-
-        confess &log(ERROR, "unable to write ${strBuffer}: $!", ERROR_PROTOCOL);
+        $self->error(ERROR_PROTOCOL, "unable to write ${strBuffer}", $!);
     }
 }
 
@@ -389,10 +377,7 @@ sub bufferRead
             # Process errors from the sysread
             if (!defined($iReadSize))
             {
-                my $strError = $!;
-
-                $self->error();
-                confess &log(ERROR, 'unable to read' . (defined($strError) ? ": ${strError}" : ''));
+                $self->error(ERROR_FILE_READ, "unable to read ${iReadSize} bytes", $!);
             }
 
             # Check for EOF
@@ -451,10 +436,7 @@ sub bufferWrite
     # Report any errors
     if (!defined($iWriteOut) || $iWriteOut != $iWriteSize)
     {
-        my $strError = $!;
-
-        $self->error();
-        confess &log(ERROR, "unable to write ${iWriteSize} bytes" . (defined($strError) ? ': ' . $strError : ''), ERROR_FILE_WRITE);
+        $self->error(ERROR_FILE_WRITE, "unable to write ${iWriteSize} bytes", $!);
     }
 }
 
