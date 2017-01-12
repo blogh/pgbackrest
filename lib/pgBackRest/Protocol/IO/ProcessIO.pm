@@ -1,7 +1,7 @@
 ####################################################################################################################################
-# PROTOCOL HANDLE IO MODULE
+# PROTOCOL PROCESS IO MODULE
 ####################################################################################################################################
-package pgBackRest::Protocol::IO::HandleIO;
+package pgBackRest::Protocol::IO::ProcessIO;
 use parent 'pgBackRest::Protocol::IO::IO';
 
 use strict;
