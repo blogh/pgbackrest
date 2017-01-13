@@ -2,7 +2,7 @@
 # FullCommonTest.pm - Common code for backup tests
 ####################################################################################################################################
 package pgBackRestTest::Full::FullCommonTest;
-use parent 'pgBackRestTest::Common::RunTest';
+use parent 'pgBackRestTest::Config::ConfigCommonTest';
 
 ####################################################################################################################################
 # Perl includes

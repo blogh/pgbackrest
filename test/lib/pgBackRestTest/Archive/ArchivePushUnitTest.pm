@@ -73,7 +73,8 @@ sub init
 {
     my $self = shift;
 
-    $self->{strWalPath} = $self->testPath() . '/db/pg_xlog';
+    $self->{strDbPath} = $self->testPath() . '/db';
+    $self->{strWalPath} = "$self->{strDbPath}/pg_xlog";
     $self->{strWalStatusPath} = "$self->{strWalPath}/archive_status";
     $self->{strRepoPath} = $self->testPath() . '/repo';
 
@@ -113,7 +114,12 @@ sub run
 {
     my $self = shift;
 
-    my $oPushAsync = new pgBackRest::Archive::ArchivePushAsync($self->{strWalPath}, '000000010000000100000001');
+    my $oOption = {};
+
+    $self->optionSetTest($oOption, OPTION_STANZA, $self->stanza());
+    $self->optionSetTest($oOption, OPTION_DB_PATH, $self->{strDbPath});
+
+    my $oPushAsync = new pgBackRest::Archive::ArchivePushAsync($self->{strWalPath}, $self->testPath() . '/archive-push.socket');
 
     #-------------------------------------------------------------------------------------------------------------------------------
     if ($self->begin("ArchivePushAsync->readyList"))
@@ -173,6 +179,17 @@ sub run
         $self->testResult(
             sub {$oPushAsync->readyList()}, '(000000020000000100000001.00000028.backup)',
             'backup .ready file');
+    }
+
+    #-------------------------------------------------------------------------------------------------------------------------------
+    if ($self->begin("ArchivePushAsync"))
+    {
+        logDisable(); $self->configLoadExpect($oOption, CMD_ARCHIVE_PUSH); logEnable();
+
+        $oPushAsync->initServer();
+        $oPushAsync->processQueue();
+
+        $self->clean();
     }
 }
 

@@ -32,6 +32,7 @@ use pgBackRest::FileCommon;
 use pgBackRest::Protocol::ArchivePushMaster;
 use pgBackRest::Protocol::ArchivePushMinion;
 use pgBackRest::Protocol::Common;
+use pgBackRest::Protocol::LocalProcess;
 use pgBackRest::Protocol::Protocol;
 
 ####################################################################################################################################
@@ -49,13 +50,13 @@ sub new
     (
         my $strOperation,
         $self->{strWalPath},
-        $self->{strWalFileBegin},
+        $self->{strSocketFile},
     ) =
         logDebugParam
         (
             __PACKAGE__ . '->new', \@_,
             {name => 'strWalPath'},
-            {name => 'strWalFileBegin'}
+            {name => 'strSocketFile'}
         );
 
     # Return from function and log return values if any
@@ -114,29 +115,7 @@ sub process
 
     if ($bClient)
     {
-        my $iWaitSeconds = 10;
-        my $oWait = waitInit($iWaitSeconds);
-
-        # Wait for the socket file to appear
-        my $bExists = false;
-
-        do
-        {
-            $bExists = fileExists($strSocketFile);
-        }
-        while (!$bExists && waitMore($oWait));
-
-        if (!$bExists)
-        {
-            confess &log(ERROR, "unable to find socket after ${iWaitSeconds} second(s)", ERROR_ARCHIVE_TIMEOUT);
-        }
-
-        my $oSocket = logErrorResult(
-            IO::Socket::UNIX->new(Type => SOCK_STREAM, Peer => $strSocketFile), ERROR_ARCHIVE_TIMEOUT,
-            'unable to connect to ' . CMD_ARCHIVE_PUSH . " async process socket: ${strSocketFile}");
-
-        $self->processClient(new pgBackRest::Protocol::ArchivePushMaster($oSocket));
-
+        $self->processClient();
     }
     else
     {
@@ -157,20 +136,7 @@ sub process
         # Open the log file
         logFileSet(optionGet(OPTION_LOG_PATH) . '/' . optionGet(OPTION_STANZA) . '-archive-async');
 
-        &log(WARN, "SOCKET $strSocketFile");
-
-        my $oServer = logErrorResult(
-            IO::Socket::UNIX->new(Type => SOCK_STREAM, Local => $strSocketFile, Listen => 1), ERROR_ARCHIVE_TIMEOUT,
-            'unable to initialize ' . CMD_ARCHIVE_PUSH . " async process on socket: ${strSocketFile}");
-        my $oSocket = $oServer->accept();
-
-        &log(WARN, "CONNECTION FROM CLIENT");
-
-        $self->processServer(new pgBackRest::Protocol::ArchivePushMinion($oSocket));
-
-        $oSocket->close();
-        $oServer->close();
-        fileRemove($strSocketFile, true);
+        $self->processServer();
     }
 
     # # Continue with batch processing
@@ -217,6 +183,29 @@ sub process
 }
 
 ####################################################################################################################################
+# initServer
+####################################################################################################################################
+sub initServer
+{
+    my $self = shift;
+
+    # Assign function parameters, defaults, and log debug info
+    my ($strOperation) = logDebugParam(__PACKAGE__ . '->initServer');
+
+    # Initialize the backup process
+    $self->{oArchiveProcess} = new pgBackRest::Protocol::LocalProcess(BACKUP, 0);
+    $self->{oArchiveProcess}->hostAdd(1, optionGet(OPTION_PROCESS_MAX));
+
+    # Initialize the socket
+    $self->{oServerSocket} = logErrorResult(
+        IO::Socket::UNIX->new(Type => SOCK_STREAM, Local => $self->{strSocketFile}, Listen => 1), ERROR_ARCHIVE_TIMEOUT,
+        'unable to initialize ' . CMD_ARCHIVE_PUSH . " async process on socket: $self->{strSocketFile}");
+
+    # Return from function and log return values if any
+    return logDebugReturn($strOperation);
+}
+
+####################################################################################################################################
 # processServer
 ####################################################################################################################################
 sub processServer
@@ -224,18 +213,16 @@ sub processServer
     my $self = shift;
 
     # Assign function parameters, defaults, and log debug info
-    my
-    (
-        $strOperation,
-        $oMinion,
-    ) =
-        logDebugParam
-        (
-            __PACKAGE__ . '->processServer', \@_,
-            {name => 'oMinion'},
-        );
+    my ($strOperation) = logDebugParam(__PACKAGE__ . '->processServer');
 
-    $oMinion->process();
+    $self->initServer();
+
+    # my $oSocket = $oServer->accept();
+
+    # $self->processServer(new pgBackRest::Protocol::ArchivePushMinion($oSocket));
+    # $oSocket->close();
+    # $oServer->close();
+    # fileRemove($self->{strSocketFile}, true);
 
     # Return from function and log return values if any
     return logDebugReturn($strOperation);
@@ -249,19 +236,54 @@ sub processClient
     my $self = shift;
 
     # Assign function parameters, defaults, and log debug info
-    my
-    (
-        $strOperation,
-        $oMaster,
-    ) =
-        logDebugParam
-        (
-            __PACKAGE__ . '->processServer', \@_,
-            {name => 'oMinion'},
-        );
+    my ($strOperation) = logDebugParam(__PACKAGE__ . '->processClient');
 
-    my $strWalSegment = $oMaster->cmdExecute(OP_ARCHIVE_PUSH_ASYNC, ['000000010000000100000001'], true);
-    &log(WARN, "I AM CONNECTED: " . $strWalSegment);
+    # Wait for the socket file to appear
+    my $iWaitSeconds = 10;
+    my $oWait = waitInit($iWaitSeconds);
+    my $bExists = false;
+
+    do
+    {
+        $bExists = fileExists($self->{strSocketFile});
+    }
+    while (!$bExists && waitMore($oWait));
+
+    if (!$bExists)
+    {
+        confess &log(ERROR, "unable to find socket after ${iWaitSeconds} second(s)", ERROR_ARCHIVE_TIMEOUT);
+    }
+
+    $self->{oClientSocket} = logErrorResult(
+        IO::Socket::UNIX->new(Type => SOCK_STREAM, Peer => $self->{strSocketFile}), ERROR_ARCHIVE_TIMEOUT,
+        'unable to connect to ' . CMD_ARCHIVE_PUSH . " async process socket: $self->{strSocketFile}");
+
+    # $self->processClient(new pgBackRest::Protocol::ArchivePushMaster($oSocket));
+
+    # my $strWalSegment = $oMaster->cmdExecute(OP_ARCHIVE_PUSH_ASYNC, ['000000010000000100000001'], true);
+    # &log(WARN, "I AM CONNECTED: " . $strWalSegment);
+
+    # Return from function and log return values if any
+    return logDebugReturn($strOperation);
+}
+
+####################################################################################################################################
+# processQueue
+####################################################################################################################################
+sub processQueue
+{
+    my $self = shift;
+
+    # Assign function parameters, defaults, and log debug info
+    my ($strOperation) = logDebugParam(__PACKAGE__ . '->processQueue');
+
+    # !!! If queue size is less than total processes * 2 then go look for more files
+    my $stryWalFile = $self->readyList();
+
+    foreach my $strWalFile (@{$stryWalFile})
+    {
+        $self->{oArchiveProcess}->queueJob(1, 'default', $strWalFile, OP_ARCHIVE_PUSH_FILE, [$strWalFile]);
+    }
 
     # Return from function and log return values if any
     return logDebugReturn($strOperation);
@@ -275,14 +297,7 @@ sub readyList
     my $self = shift;
 
     # Assign function parameters, defaults, and log debug info
-    my
-    (
-        $strOperation,
-    ) =
-        logDebugParam
-        (
-            __PACKAGE__ . '->readyList', \@_,
-        );
+    my ($strOperation) = logDebugParam(__PACKAGE__ . '->processQueue');
 
     # Read the ready files
     my $strWalStatusPath = "$self->{strWalPath}/archive_status";

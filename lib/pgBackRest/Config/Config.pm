@@ -1295,6 +1295,7 @@ my %oOptionRule =
         &OPTION_RULE_ALLOW_RANGE => [OPTION_DEFAULT_PROCESS_MAX_MIN, OPTION_DEFAULT_PROCESS_MAX_MAX],
         &OPTION_RULE_COMMAND =>
         {
+            &CMD_ARCHIVE_PUSH => true,
             &CMD_BACKUP => true,
             &CMD_RESTORE => true
         }

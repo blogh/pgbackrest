@@ -207,7 +207,7 @@ my $oTestDef =
                 },
                 {
                     &TESTDEF_TEST_NAME => 'push-unit',
-                    &TESTDEF_TEST_TOTAL => 1,
+                    &TESTDEF_TEST_TOTAL => 2,
                     &TESTDEF_TEST_INDIVIDUAL => false,
                     &TESTDEF_EXPECT => false,
 
