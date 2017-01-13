@@ -54,6 +54,13 @@ use constant TESTDEF_MODULE_FILE                                    => 'File';
 use constant TESTDEF_MODULE_FILE_COMMON                             => TESTDEF_MODULE_FILE . 'Common';
     push @EXPORT, qw(TESTDEF_MODULE_FILE_COMMON);
 
+use constant TESTDEF_MODULE_ARCHIVE                                 => 'Archive';
+    push @EXPORT, qw(TESTDEF_MODULE_ARCHIVE);
+use constant TESTDEF_MODULE_ARCHIVE_PUSH                            => TESTDEF_MODULE_ARCHIVE . '/ArchivePush';
+    push @EXPORT, qw(TESTDEF_MODULE_ARCHIVE_PUSH);
+use constant TESTDEF_MODULE_ARCHIVE_PUSH_ASYNC                      => TESTDEF_MODULE_ARCHIVE_PUSH . 'Async';
+    push @EXPORT, qw(TESTDEF_MODULE_ARCHIVE_PUSH_ASYNC);
+
 ################################################################################################################################
 # Define tests
 ################################################################################################################################
@@ -201,7 +208,16 @@ my $oTestDef =
                 {
                     &TESTDEF_TEST_NAME => 'push-unit',
                     &TESTDEF_TEST_TOTAL => 1,
+                    &TESTDEF_TEST_INDIVIDUAL => false,
                     &TESTDEF_EXPECT => false,
+
+                    &TESTDEF_TEST_COVERAGE =>
+                    {
+                        &TESTDEF_TEST_ALL =>
+                        {
+                            &TESTDEF_MODULE_ARCHIVE_PUSH_ASYNC => TESTDEF_COVERAGE_FULL,
+                        }
+                    },
                 },
                 {
                     &TESTDEF_TEST_NAME => 'push',

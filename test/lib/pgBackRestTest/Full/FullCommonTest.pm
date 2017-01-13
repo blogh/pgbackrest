@@ -178,4 +178,19 @@ sub archiveGenerate
     return $strArchiveFile, $strSourceFile;
 }
 
+####################################################################################################################################
+# walFileName
+#
+# Generate name of WAL segment from component parts.
+####################################################################################################################################
+sub walFileName
+{
+    my $self = shift;
+    my $iTimeline = shift;
+    my $iMajor = shift;
+    my $iMinor = shift;
+
+    return uc(sprintf('%08x%08x%08x', $iTimeline, $iMajor, $iMinor));
+}
+
 1;
