@@ -288,8 +288,6 @@ sub readyList
     my $strWalStatusPath = "$self->{strWalPath}/archive_status";
     my @stryReadyFile = fileList($strWalStatusPath, '^.*\.ready$');
 
-    &log(INFO, 'found ' . @stryReadyFile . ' .ready files');
-
     # Generate a list of new files
     my @stryNewReadyFile;
 
@@ -299,7 +297,6 @@ sub readyList
 
         if (!defined($self->{hWalState}{$strReadyFile}))
         {
-            &log(INFO, "found new ready file ${strReadyFile}");
             push(@stryNewReadyFile, $strReadyFile);
             $self->{hWalState}{$strReadyFile} = false;
         }
