@@ -255,8 +255,13 @@ sub testResult
     my $self = shift;
     my $fnSub = shift;
     my $strExpected = shift;
+    my $strDescription = shift;
 
+    &log(INFO, '     ' . (defined($strDescription) ? $strDescription : 'no description'));
+
+    logDisable();
     my $strActual = ${logDebugBuild($fnSub->())};
+    logEnable();
 
     if (!defined($strExpected) && defined($strActual) || defined($strExpected) && !defined($strActual) ||
         $strActual ne $strExpected)
@@ -282,11 +287,15 @@ sub testException
 
     eval
     {
+        logDisable();
         $fnSub->();
+        logEnable();
         return true;
     }
     or do
     {
+        logEnable();
+
         if (!isException($EVAL_ERROR))
         {
             confess "${strError} but actual was standard Perl exception";

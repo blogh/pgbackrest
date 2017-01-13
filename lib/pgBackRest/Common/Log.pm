@@ -72,6 +72,9 @@ my $strLogLevelFile = OFF;
 my $strLogLevelConsole = OFF;
 my $strLogLevelStdErr = WARN;
 
+# Allow log to be globally enabled or disabled with logEnable() and logDisable()
+my $bLogDisable = 0;
+
 # Test globals
 my $bTest = false;
 my $fTestDelay;
@@ -185,6 +188,26 @@ sub logLevelSet
 }
 
 push @EXPORT, qw(logLevelSet);
+
+####################################################################################################################################
+# logDisable
+####################################################################################################################################
+sub logDisable
+{
+    $bLogDisable++;
+}
+
+push @EXPORT, qw(logDisable);
+
+####################################################################################################################################
+# logEnable
+####################################################################################################################################
+sub logEnable
+{
+    $bLogDisable--;
+}
+
+push @EXPORT, qw(logEnable);
 
 ####################################################################################################################################
 # logDebugParam
@@ -509,6 +532,9 @@ sub log
     my $iIndent = shift;
     my $iProcessId = shift;
     my $rExtra = shift;
+
+    # return if logging is currently disabled
+    return if $bLogDisable;
 
     # Set defaults
     $bSuppressLog = defined($bSuppressLog) ? $bSuppressLog : false;
