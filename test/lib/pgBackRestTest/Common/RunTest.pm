@@ -417,7 +417,13 @@ sub testRunExe
                 if (defined($strTest) && $hTest->{&TESTDEF_TEST_NAME} eq $strTest)
                 {
                     $hTestCoverage =
-                        defined($hTest->{&TESTDEF_TEST_COVERAGE}{$iRun}) ? $hTest->{&TESTDEF_TEST_COVERAGE}{$iRun}: $hTestCoverage;
+                        defined($hTest->{&TESTDEF_TEST_COVERAGE}{$iRun}) ? $hTest->{&TESTDEF_TEST_COVERAGE}{$iRun} :
+                            $hTest->{&TESTDEF_TEST_COVERAGE}{&TESTDEF_TEST_ALL};
+
+                    if (!defined($hTestCoverage))
+                    {
+                        $hTestCoverage = $hTestModule->{&TESTDEF_TEST_COVERAGE};
+                    }
                 }
             }
         }
