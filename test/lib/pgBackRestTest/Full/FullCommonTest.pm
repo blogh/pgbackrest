@@ -179,11 +179,11 @@ sub archiveGenerate
 }
 
 ####################################################################################################################################
-# walFileName
+# walSegment
 #
 # Generate name of WAL segment from component parts.
 ####################################################################################################################################
-sub walFileName
+sub walSegment
 {
     my $self = shift;
     my $iTimeline = shift;
@@ -191,6 +191,34 @@ sub walFileName
     my $iMinor = shift;
 
     return uc(sprintf('%08x%08x%08x', $iTimeline, $iMajor, $iMinor));
+}
+
+####################################################################################################################################
+# walGenerate
+#
+# Generate a WAL segment and ready file for testing.
+####################################################################################################################################
+sub walGenerate
+{
+    my $self = shift;
+    my $oFile = shift;
+    my $strWalPath = shift;
+    my $strPgVersion = shift;
+    my $iSourceNo = shift;
+    my $strWalSegment = shift;
+    my $bPartial = shift;
+
+    my $strWalFile = "${strWalPath}/${strWalSegment}" . (defined($bPartial) && $bPartial ? '.partial' : '');
+    my $strArchiveTestFile = $self->dataPath() . "/backup.wal${iSourceNo}_${strPgVersion}.bin";
+
+    $oFile->copy(PATH_DB_ABSOLUTE, $strArchiveTestFile, # Source file
+                 PATH_DB_ABSOLUTE, $strWalFile,         # Destination file
+                 false,                                 # Source is not compressed
+                 false);                                # Destination is not compressed
+
+    fileStringWrite("${strWalPath}/archive_status/${strWalSegment}.ready", "TEST");
+
+    return $strWalFile;
 }
 
 1;

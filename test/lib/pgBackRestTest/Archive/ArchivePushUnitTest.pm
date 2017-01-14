@@ -44,7 +44,7 @@ use pgBackRestTest::Full::FullCommonTest;
 #     my $bCompress = shift;
 #
 #     # Build the archive name to check for at the destination
-#     my $strArchiveCheck = PG_VERSION_94 . "-1/${strArchiveFile}-${strArchiveChecksum}";
+#     my $strArchiveCheck = WAL_VERSION_94 . "-1/${strArchiveFile}-${strArchiveChecksum}";
 #
 #     if ($bCompress)
 #     {
@@ -132,25 +132,25 @@ sub run
 
         #---------------------------------------------------------------------------------------------------------------------------
         fileStringWrite(
-            "$self->{strWalStatusPath}/" . $self->walFileName($iWalTimeline, $iWalMajor, $iWalMinor++) . '.done', 'TEST');
+            "$self->{strWalStatusPath}/" . $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++) . '.done', 'TEST');
 
         $self->testResult(
             sub {$oPushAsync->readyList()}, '()',
             'ignore files without .ready extenstion');
 
         #---------------------------------------------------------------------------------------------------------------------------
-        fileStringWrite(
-            "$self->{strWalStatusPath}/" . $self->walFileName($iWalTimeline, $iWalMajor, $iWalMinor++) . '.ready', 'TEST');
-        fileStringWrite(
-            "$self->{strWalStatusPath}/" . $self->walFileName($iWalTimeline, $iWalMajor, $iWalMinor++) . '.ready', 'TEST');
+        $self->walGenerate(
+            $self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++));
+        $self->walGenerate(
+            $self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++));
 
         $self->testResult(
             sub {$oPushAsync->readyList()}, '(000000010000000100000002, 000000010000000100000003)',
             '.ready files are found');
 
         #---------------------------------------------------------------------------------------------------------------------------
-        fileStringWrite(
-            "$self->{strWalStatusPath}/" . $self->walFileName($iWalTimeline, $iWalMajor, $iWalMinor++) . '.ready', 'TEST');
+        $self->walGenerate(
+            $self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++));
 
         $self->testResult(
             sub {$oPushAsync->readyList()}, '(000000010000000100000004)',
@@ -173,7 +173,7 @@ sub run
 
         #---------------------------------------------------------------------------------------------------------------------------
         fileStringWrite(
-            "$self->{strWalStatusPath}/" . $self->walFileName($iWalTimeline, $iWalMajor, $iWalMinor++) . '.00000028.backup.ready',
+            "$self->{strWalStatusPath}/" . $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++) . '.00000028.backup.ready',
             'TEST');
 
         $self->testResult(
@@ -184,12 +184,19 @@ sub run
     #-------------------------------------------------------------------------------------------------------------------------------
     if ($self->begin("ArchivePushAsync"))
     {
+        $self->clean();
+
+        my $iWalTimeline = 1;
+        my $iWalMajor = 1;
+        my $iWalMinor = 1;
+
         logDisable(); $self->configLoadExpect($oOption, CMD_ARCHIVE_PUSH); logEnable();
+
+        $self->walGenerate(
+            $self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++));
 
         $oPushAsync->initServer();
         $oPushAsync->processQueue();
-
-        $self->clean();
     }
 }
 

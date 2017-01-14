@@ -280,9 +280,12 @@ sub processQueue
     # !!! If queue size is less than total processes * 2 then go look for more files
     my $stryWalFile = $self->readyList();
 
+    !!! Test that queue is processed
+
     foreach my $strWalFile (@{$stryWalFile})
     {
         $self->{oArchiveProcess}->queueJob(1, 'default', $strWalFile, OP_ARCHIVE_PUSH_FILE, [$strWalFile]);
+        &log(WARN, "FOUND $strWalFile");
     }
 
     # Return from function and log return values if any
