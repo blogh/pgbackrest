@@ -221,4 +221,19 @@ sub walGenerate
     return $strWalFile;
 }
 
+####################################################################################################################################
+# walRemove
+#
+# Remove WAL file and ready file.
+####################################################################################################################################
+sub walRemove
+{
+    my $self = shift;
+    my $strWalPath = shift;
+    my $strWalFile = shift;
+
+    fileRemove("$self->{strWalPath}/${strWalFile}");
+    fileRemove("$self->{strWalPath}/archive_status/${strWalFile}.ready");
+}
+
 1;

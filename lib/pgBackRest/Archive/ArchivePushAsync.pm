@@ -328,6 +328,7 @@ sub readyList
 
     # Generate a list of new files
     my @stryNewReadyFile;
+    my $hReadyFile = {};
 
     foreach my $strReadyFile (@stryReadyFile)
     {
@@ -340,9 +341,18 @@ sub readyList
             # Push onto list of new files
             push(@stryNewReadyFile, $strReadyFile);
         }
+
+        $hReadyFile->{$strReadyFile} = true;
     }
 
-    # !!! Also need to remove files that are no longer in ready state
+    # Remove files that are no longer in ready state
+    foreach my $strReadyFile (sort(keys(%{$self->{hWalState}})))
+    {
+        if (!defined($hReadyFile->{$strReadyFile}))
+        {
+            delete($self->{hWalState}{$strReadyFile});
+        }
+    }
 
     return logDebugReturn
     (

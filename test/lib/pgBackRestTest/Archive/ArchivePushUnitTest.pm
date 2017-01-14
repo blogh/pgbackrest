@@ -203,15 +203,25 @@ sub run
 
         $oPushAsync->initServer();
 
+        #---------------------------------------------------------------------------------------------------------------------------
         $self->testResult(
             sub {my @strResult = $oPushAsync->processQueue(); return \@strResult;}, '(1, 1)', "begin processing ${strSegment}");
 
         $self->testResult($oPushAsync->{hWalState}, '{000000010000000100000001 => 0}', "${strSegment} not pushed");
 
+        #---------------------------------------------------------------------------------------------------------------------------
         $self->testResult(
-            sub {my @strResult = $oPushAsync->processQueue(); return \@strResult;}, '(0, 0)', "stop processing ${strSegment}");
+            sub {my @strResult = $oPushAsync->processQueue(); return \@strResult;}, '(0, 0)', "end processing ${strSegment}");
 
         $self->testResult($oPushAsync->{hWalState}, '{000000010000000100000001 => 1}', "${strSegment} pushed");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        $self->walRemove($self->{strWalPath}, $strSegment);
+
+        $self->testResult(
+            sub {my @strResult = $oPushAsync->processQueue(); return \@strResult;}, '(0, 0)', "${strSegment}.ready removed");
+
+        $self->testResult($oPushAsync->{hWalState}, '{}', "${strSegment} pushed");
     }
 }
 
