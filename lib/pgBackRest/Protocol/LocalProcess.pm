@@ -31,12 +31,14 @@ sub new
         my $strOperation,
         $self->{strHostType},
         $self->{iSelectTimeout},
+        $self->{strBackRestBin},
     ) =
         logDebugParam
         (
             __PACKAGE__ . '->new', \@_,
             {name => 'strHostType'},
             {name => 'iSelectTimeout', default => int(optionGet(OPTION_PROTOCOL_TIMEOUT) / 2)},
+            {name => 'strBackRestBin', default => BACKREST_BIN},
         );
 
     # Declare host map and array
@@ -172,7 +174,7 @@ sub hostConnect
             my $oLocal = new pgBackRest::Protocol::LocalMaster
             (
                 commandWrite(
-                    CMD_LOCAL, true, BACKREST_BIN, undef,
+                    CMD_LOCAL, true, $self->{strBackRestBin}, undef,
                     {
                         &OPTION_COMMAND => {value => commandGet()},
                         &OPTION_PROCESS => {value => $iProcessId},

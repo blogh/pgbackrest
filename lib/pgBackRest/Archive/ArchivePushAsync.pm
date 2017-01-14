@@ -34,6 +34,7 @@ use pgBackRest::Protocol::ArchivePushMinion;
 use pgBackRest::Protocol::Common;
 use pgBackRest::Protocol::LocalProcess;
 use pgBackRest::Protocol::Protocol;
+use pgBackRest::Version;
 
 ####################################################################################################################################
 # constructor
@@ -51,12 +52,14 @@ sub new
         my $strOperation,
         $self->{strWalPath},
         $self->{strSocketFile},
+        $self->{strBackRestBin},
     ) =
         logDebugParam
         (
             __PACKAGE__ . '->new', \@_,
             {name => 'strWalPath'},
-            {name => 'strSocketFile'}
+            {name => 'strSocketFile'},
+            {name => 'strBackRestBin', default => BACKREST_BIN},
         );
 
     # Return from function and log return values if any
@@ -193,7 +196,7 @@ sub initServer
     my ($strOperation) = logDebugParam(__PACKAGE__ . '->initServer');
 
     # Initialize the backup process
-    $self->{oArchiveProcess} = new pgBackRest::Protocol::LocalProcess(BACKUP, 0);
+    $self->{oArchiveProcess} = new pgBackRest::Protocol::LocalProcess(BACKUP, 0, $self->{strBackRestBin});
     $self->{oArchiveProcess}->hostAdd(1, optionGet(OPTION_PROCESS_MAX));
 
     # Initialize the socket
@@ -280,13 +283,26 @@ sub processQueue
     # !!! If queue size is less than total processes * 2 then go look for more files
     my $stryWalFile = $self->readyList();
 
-    !!! Test that queue is processed
+    # !!! Test that queue is processed
 
+    # Add files to the queue
     foreach my $strWalFile (@{$stryWalFile})
     {
-        $self->{oArchiveProcess}->queueJob(1, 'default', $strWalFile, OP_ARCHIVE_PUSH_FILE, [$strWalFile]);
-        &log(WARN, "FOUND $strWalFile");
+        $self->{hWalState}{$strWalFile} = false;
+        $self->{oArchiveProcess}->queueJob(1, 'default', $strWalFile, OP_ARCHIVE_PUSH_FILE, [$self->{strWalPath}, $strWalFile]);
     }
+
+    # Process the queue
+    if (my $hyJob = $self->{oArchiveProcess}->process())
+    {
+        foreach my $hJob (@{$hyJob})
+        {
+            $self->{hWalState}{@{$hJob->{rParam}}[1]} = true;
+        }
+    }
+
+    # # Send keep alives
+    # $oProtocolMaster->keepAlive();
 
     # Return from function and log return values if any
     return logDebugReturn($strOperation);
@@ -311,14 +327,18 @@ sub readyList
 
     foreach my $strReadyFile (@stryReadyFile)
     {
+        # Remove .ready extension
         $strReadyFile = substr($strReadyFile, 0, length($strReadyFile) - length('.ready'));
 
+        # Add the file if it is not already in the hash
         if (!defined($self->{hWalState}{$strReadyFile}))
         {
+            # Push onto list of new files
             push(@stryNewReadyFile, $strReadyFile);
-            $self->{hWalState}{$strReadyFile} = false;
         }
     }
+
+    # !!! Also need to remove files that are no longer in ready state
 
     return logDebugReturn
     (

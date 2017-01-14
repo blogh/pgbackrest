@@ -118,13 +118,16 @@ sub run
 
     $self->optionSetTest($oOption, OPTION_STANZA, $self->stanza());
     $self->optionSetTest($oOption, OPTION_DB_PATH, $self->{strDbPath});
-
-    my $oPushAsync = new pgBackRest::Archive::ArchivePushAsync($self->{strWalPath}, $self->testPath() . '/archive-push.socket');
+    $self->optionSetTest($oOption, OPTION_DB_TIMEOUT, 5);
+    $self->optionSetTest($oOption, OPTION_PROTOCOL_TIMEOUT, 6);
 
     #-------------------------------------------------------------------------------------------------------------------------------
     if ($self->begin("ArchivePushAsync->readyList"))
     {
         $self->clean();
+
+        my $oPushAsync = new pgBackRest::Archive::ArchivePushAsync(
+            $self->{strWalPath}, $self->testPath() . '/archive-push.socket');
 
         my $iWalTimeline = 1;
         my $iWalMajor = 1;
@@ -185,6 +188,9 @@ sub run
     if ($self->begin("ArchivePushAsync"))
     {
         $self->clean();
+
+        my $oPushAsync = new pgBackRest::Archive::ArchivePushAsync(
+            $self->{strWalPath}, $self->testPath() . '/archive-push.socket', $self->backrestExe());
 
         my $iWalTimeline = 1;
         my $iWalMajor = 1;
