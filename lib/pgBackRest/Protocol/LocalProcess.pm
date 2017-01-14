@@ -78,6 +78,9 @@ sub reset
     # Set the processing flag to false
     $self->{bProcessing} = false;
 
+    # Initialize job total to 0
+    $self->{iTotal} = 0;
+
     # Initialize running job total to 0
     $self->{iRunning} = 0;
 
@@ -329,6 +332,7 @@ sub process
 
             # Free the local process to receive another job
             $hLocal->{hJob} = undef;
+            $self->{iTotal}--;
             $self->{iRunning}--;
             $iCompleted++;
         }
@@ -509,9 +513,30 @@ sub queueJob
     }
 
     push(@{$hHost->{hyQueue}[$iQueueIdx]}, $hJob);
+    $self->{iTotal}++;
 
     # Return from function and log return values if any
     return logDebugReturn($strOperation);
+}
+
+####################################################################################################################################
+# jobTotal
+#
+# Total jobs in the queue.
+####################################################################################################################################
+sub jobTotal
+{
+    my $self = shift;
+
+    # Assign function parameters, defaults, and log debug info
+    my ($strOperation) = logDebugParam(__PACKAGE__ . '->jobTotal');
+
+    # Return from function and log return values if any
+    return logDebugReturn
+    (
+        $strOperation,
+        {name => 'iJobTotal', value => $self->{iTotal}}
+    );
 }
 
 1;

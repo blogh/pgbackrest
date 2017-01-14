@@ -198,11 +198,20 @@ sub run
 
         logDisable(); $self->configLoadExpect($oOption, CMD_ARCHIVE_PUSH); logEnable();
 
-        $self->walGenerate(
-            $self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++));
+        my $strSegment = $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++);
+        $self->walGenerate($self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $strSegment);
 
         $oPushAsync->initServer();
-        $oPushAsync->processQueue();
+
+        $self->testResult(
+            sub {my @strResult = $oPushAsync->processQueue(); return \@strResult;}, '(1, 1)', "begin processing ${strSegment}");
+
+        $self->testResult($oPushAsync->{hWalState}, '{000000010000000100000001 => 0}', "${strSegment} not pushed");
+
+        $self->testResult(
+            sub {my @strResult = $oPushAsync->processQueue(); return \@strResult;}, '(0, 0)', "stop processing ${strSegment}");
+
+        $self->testResult($oPushAsync->{hWalState}, '{000000010000000100000001 => 1}', "${strSegment} pushed");
     }
 }
 

@@ -47,13 +47,10 @@ sub archivePushFile
             {name => 'strWalFile'},
         );
 
+    # !!! Put some logic in here
+
     # Return from function and log return values if any
-    return logDebugReturn
-    (
-        $strOperation
-        # ,
-        # {name => 'iResult', value => true, trace => true}
-    );
+    return logDebugReturn($strOperation);
 }
 
 push @EXPORT, qw(archivePushFile);

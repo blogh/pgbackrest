@@ -260,7 +260,7 @@ sub testResult
     &log(INFO, '     ' . (defined($strDescription) ? $strDescription : 'no description'));
 
     logDisable();
-    my $strActual = ${logDebugBuild($fnSub->())};
+    my $strActual = ${logDebugBuild(ref($fnSub) eq 'CODE' ? $fnSub->() : $fnSub)};
     logEnable();
 
     if (!defined($strExpected) && defined($strActual) || defined($strExpected) && !defined($strActual) ||

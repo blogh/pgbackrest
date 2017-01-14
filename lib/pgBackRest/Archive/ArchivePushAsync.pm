@@ -304,8 +304,12 @@ sub processQueue
     # # Send keep alives
     # $oProtocolMaster->keepAlive();
 
-    # Return from function and log return values if any
-    return logDebugReturn($strOperation);
+    return logDebugReturn
+    (
+        $strOperation,
+        {name => 'iNewTotal', value => scalar(@{$stryWalFile})},
+        {name => 'iQueueTotal', value => $self->{oArchiveProcess}->jobTotal()}
+    );
 }
 
 ####################################################################################################################################
