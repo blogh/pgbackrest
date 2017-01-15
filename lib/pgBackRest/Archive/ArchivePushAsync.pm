@@ -253,7 +253,6 @@ sub processQueue
     # Add files to the queue
     foreach my $strWalFile (@{$stryWalFile})
     {
-        $self->{hWalState}{$strWalFile} = false;
         $self->{oArchiveProcess}->queueJob(1, 'default', $strWalFile, OP_ARCHIVE_PUSH_FILE, [$self->{strWalPath}, $strWalFile]);
     }
 
@@ -303,10 +302,14 @@ sub readyList
         # Add the file if it is not already in the hash
         if (!defined($self->{hWalState}{$strReadyFile}))
         {
+            # Set the file as not pushed
+            $self->{hWalState}{$strReadyFile} = false;
+
             # Push onto list of new files
             push(@stryNewReadyFile, $strReadyFile);
         }
 
+        # Add to the ready hash for speed finding removed files
         $hReadyFile->{$strReadyFile} = true;
     }
 
