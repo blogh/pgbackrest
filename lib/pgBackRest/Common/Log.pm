@@ -533,9 +533,6 @@ sub log
     my $iProcessId = shift;
     my $rExtra = shift;
 
-    # return if logging is currently disabled
-    return if $bLogDisable;
-
     # Set defaults
     $bSuppressLog = defined($bSuppressLog) ? $bSuppressLog : false;
 
@@ -622,69 +619,74 @@ sub log
         (defined($iProcessId) ? $iProcessId : 0)) .
         (' ' x (7 - length($strLevel))) . "${strLevel}: ${strMessageFormat}\n";
 
-    # Output to stderr depending on log level
-    if (!$rExtra->{bLogConsole} && $iLogLevelRank <= $oLogLevelRank{$strLogLevelStdErr}{rank})
+    # Skip output if disabled
+    if (!$bLogDisable)
     {
-        if ($strLogLevelStdErr ne PROTOCOL)
+        # Output to stderr depending on log level
+        if (!$rExtra->{bLogConsole} && $iLogLevelRank <= $oLogLevelRank{$strLogLevelStdErr}{rank})
         {
-            syswrite(*STDERR, $strLevel . (defined($iCode) ? " [${iCode}]" : '') . ': ');
+            if ($strLogLevelStdErr ne PROTOCOL)
+            {
+                syswrite(*STDERR, $strLevel . (defined($iCode) ? " [${iCode}]" : '') . ': ');
+            }
+
+            syswrite(*STDERR, "${strMessage}\n");
+            $rExtra->{bLogConsole} = true;
         }
-
-        syswrite(*STDERR, "${strMessage}\n");
-        $rExtra->{bLogConsole} = true;
-    }
-    # Else output to stdout depending on log level and test flag
-    elsif (!$rExtra->{bLogConsole} && $iLogLevelRank <= $oLogLevelRank{$strLogLevelConsole}{rank} || $bTest && $strLevel eq TEST)
-    {
-        if (!$bSuppressLog)
-        {
-            syswrite(*STDOUT, $strMessageFormat);
-        }
-
-        # If in test mode and this is a test messsage then delay so the calling process has time to read the message
-        if ($bTest && $strLevel eq TEST && $fTestDelay > 0)
-        {
-            usleep($fTestDelay * 1000000);
-        }
-
-        $rExtra->{bLogConsole} = true;
-    }
-
-    # Output to file depending on log level and test flag
-    if (!$rExtra->{bLogLogFile} && $iLogLevelRank <= $oLogLevelRank{$strLogLevelFile}{rank})
-    {
-        if (defined($hLogFile) || (defined($strLogLevelFile) && $strLogLevelFile ne OFF))
+        # Else output to stdout depending on log level and test flag
+        elsif (!$rExtra->{bLogConsole} && $iLogLevelRank <= $oLogLevelRank{$strLogLevelConsole}{rank} ||
+               $bTest && $strLevel eq TEST)
         {
             if (!$bSuppressLog)
             {
-                if (defined($hLogFile))
-                {
-                    syswrite($hLogFile, $strMessageFormat);
-                }
-                else
-                {
-                    $strLogFileCache .= $strMessageFormat;
-                }
+                syswrite(*STDOUT, $strMessageFormat);
+            }
 
-                if ($strLevel eq ASSERT ||
-                    ($strLevel eq ERROR && ($strLogLevelFile eq DEBUG || $strLogLevelFile eq TRACE)))
-                {
-                    my $strStackTrace = longmess() . "\n";
-                    $strStackTrace =~ s/\n/\n                                   /g;
+            # If in test mode and this is a test messsage then delay so the calling process has time to read the message
+            if ($bTest && $strLevel eq TEST && $fTestDelay > 0)
+            {
+                usleep($fTestDelay * 1000000);
+            }
 
+            $rExtra->{bLogConsole} = true;
+        }
+
+        # Output to file depending on log level and test flag
+        if (!$rExtra->{bLogLogFile} && $iLogLevelRank <= $oLogLevelRank{$strLogLevelFile}{rank})
+        {
+            if (defined($hLogFile) || (defined($strLogLevelFile) && $strLogLevelFile ne OFF))
+            {
+                if (!$bSuppressLog)
+                {
                     if (defined($hLogFile))
                     {
-                        syswrite($hLogFile, $strStackTrace);
+                        syswrite($hLogFile, $strMessageFormat);
                     }
                     else
                     {
-                        $strLogFileCache .= $strStackTrace;
+                        $strLogFileCache .= $strMessageFormat;
+                    }
+
+                    if ($strLevel eq ASSERT ||
+                        ($strLevel eq ERROR && ($strLogLevelFile eq DEBUG || $strLogLevelFile eq TRACE)))
+                    {
+                        my $strStackTrace = longmess() . "\n";
+                        $strStackTrace =~ s/\n/\n                                   /g;
+
+                        if (defined($hLogFile))
+                        {
+                            syswrite($hLogFile, $strStackTrace);
+                        }
+                        else
+                        {
+                            $strLogFileCache .= $strStackTrace;
+                        }
                     }
                 }
             }
-        }
 
-        $rExtra->{bLogFile} = true;
+            $rExtra->{bLogFile} = true;
+        }
     }
 
     # Throw a typed exception if code is defined

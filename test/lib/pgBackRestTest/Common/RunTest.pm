@@ -298,7 +298,7 @@ sub testException
 
         if (!isException($EVAL_ERROR))
         {
-            confess "${strError} but actual was standard Perl exception";
+            confess "${strError} but actual was standard Perl exception" . (defined($EVAL_ERROR) ? ": ${EVAL_ERROR}" : '');
         }
 
         if (!($EVAL_ERROR->code() == $iCodeExpected && $EVAL_ERROR->message() eq $strMessageExpected))

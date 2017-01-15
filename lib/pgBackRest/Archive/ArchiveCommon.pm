@@ -346,4 +346,28 @@ sub walPath
 
 push @EXPORT, qw(walPath);
 
+####################################################################################################################################
+# walIsSegment
+#
+# Is the file a segment or some other file (e.g. .history, .backup, etc).
+####################################################################################################################################
+sub walIsSegment
+{
+    # Assign function parameters, defaults, and log debug info
+    my
+    (
+        $strOperation,
+        $strWalFile,
+    ) =
+        logDebugParam
+        (
+            __PACKAGE__ . '::walIsSegment', \@_,
+            {name => 'strWalFile', trace => true},
+        );
+
+    return $strWalFile =~ /^[0-F]{24}(\.partial){0,1}$/ ? true : false;
+}
+
+push @EXPORT, qw(walIsSegment);
+
 1;

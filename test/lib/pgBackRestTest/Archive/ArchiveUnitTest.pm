@@ -24,32 +24,54 @@ use pgBackRest::Config::Config;
 sub run
 {
     my $self = shift;
+    my $strModule = 'ArchiveCommon';
 
-    # Increment the run, log, and decide whether this unit test should be run
-    if (!$self->begin('unit')) {return}
-
-    # Unit tests for walPath()
-    #-----------------------------------------------------------------------------------------------------------------------
+    #-------------------------------------------------------------------------------------------------------------------------------
+    if ($self->begin("${strModule}::walPath()"))
     {
         my $strDbPath = '/db';
         my $strWalFileRelative = 'pg_xlog/000000010000000100000001';
         my $strWalFileAbsolute = "${strDbPath}/${strWalFileRelative}";
 
-        # Error is thrown if the wal file is relative and there is no db path
+        #---------------------------------------------------------------------------------------------------------------------------
         $self->testException(
             sub {walPath($strWalFileRelative, undef, CMD_ARCHIVE_GET)}, ERROR_OPTION_REQUIRED,
             "option '" . OPTION_DB_PATH . "' must be specified when relative xlog paths are used\n" .
             "HINT: Is \%f passed to " . CMD_ARCHIVE_GET . " instead of \%p?\n" .
             "HINT: PostgreSQL may pass relative paths even with \%p depending on the environment.");
 
-        # Relative path is contructed
-        $self->testResult(sub {walPath($strWalFileRelative, $strDbPath, CMD_ARCHIVE_PUSH)}, $strWalFileAbsolute);
+        #---------------------------------------------------------------------------------------------------------------------------
+        $self->testResult(
+            sub {walPath($strWalFileRelative, $strDbPath, CMD_ARCHIVE_PUSH)}, $strWalFileAbsolute, 'relative path is contructed');
 
-        # Path is not relative and db-path is still specified
-        $self->testResult(sub {walPath($strWalFileAbsolute, $strDbPath, CMD_ARCHIVE_PUSH)}, $strWalFileAbsolute);
+        #---------------------------------------------------------------------------------------------------------------------------
+        $self->testResult(
+            sub {walPath($strWalFileAbsolute, $strDbPath, CMD_ARCHIVE_PUSH)}, $strWalFileAbsolute,
+            'path is not relative and db-path is still specified');
 
-        # Path is not relative and db-path is undef
-        $self->testResult(sub {walPath($strWalFileAbsolute, $strDbPath, CMD_ARCHIVE_PUSH)}, $strWalFileAbsolute);
+        #---------------------------------------------------------------------------------------------------------------------------
+        $self->testResult(
+            sub {walPath($strWalFileAbsolute, $strDbPath, CMD_ARCHIVE_PUSH)}, $strWalFileAbsolute,
+            'path is not relative and db-path is undef');
+    }
+
+    #-------------------------------------------------------------------------------------------------------------------------------
+    if ($self->begin("${strModule}::walIsSegment()"))
+    {
+        #---------------------------------------------------------------------------------------------------------------------------
+        $self->testResult(sub {walIsSegment('0000000200ABCDEF0000001')}, false, 'invalid segment');
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        $self->testResult(sub {walIsSegment('0000000200ABCDEF00000001')}, true, 'valid segment');
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        $self->testResult(sub {walIsSegment('000000010000000100000001.partial')}, true, 'valid partial segment');
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        $self->testResult(sub {walIsSegment('00000001.history')}, false, 'valid history file');
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        $self->testResult(sub {walIsSegment('000000020000000100000001.00000028.backup')}, false, 'valid backup file');
     }
 }
 
