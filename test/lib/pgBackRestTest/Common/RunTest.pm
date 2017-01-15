@@ -258,13 +258,28 @@ sub testResult
     my $strDescription = shift;
 
     &log(INFO, '     ' . (defined($strDescription) ? $strDescription : 'no description'));
+    my $strActual;
 
-    logDisable();
-    my $strActual = ${logDebugBuild(ref($fnSub) eq 'CODE' ? $fnSub->() : $fnSub)};
-    logEnable();
+    eval
+    {
+        logDisable();
+        $strActual = ${logDebugBuild(ref($fnSub) eq 'CODE' ? $fnSub->() : $fnSub)};
+        logEnable();
+        return true;
+    }
+    or do
+    {
+        logEnable();
 
-    if (!defined($strExpected) && defined($strActual) || defined($strExpected) && !defined($strActual) ||
-        $strActual ne $strExpected)
+        if (!isException($EVAL_ERROR))
+        {
+            confess "unexpected standard Perl exception" . (defined($EVAL_ERROR) ? ": ${EVAL_ERROR}" : '');
+        }
+
+        confess &logException($EVAL_ERROR);
+    };
+
+    if ($strActual ne (defined($strExpected) ? $strExpected : "[undef]"))
     {
         confess
             'expected ' . (defined($strExpected) ? "\"${strExpected}\"" : '[undef]') .
@@ -281,6 +296,10 @@ sub testException
     my $fnSub = shift;
     my $iCodeExpected = shift;
     my $strMessageExpected = shift;
+
+    # Output first line of the error message
+    my @stryErrorMessage = split('\n', $strMessageExpected);
+    &log(INFO, "     [${iCodeExpected}] " . $stryErrorMessage[0]);
 
     my $bError = false;
     my $strError = "exception ${iCodeExpected}, \"${strMessageExpected}\" was expected";

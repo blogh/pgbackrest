@@ -203,7 +203,7 @@ my $oTestDef =
             [
                 {
                     &TESTDEF_TEST_NAME => 'unit',
-                    &TESTDEF_TEST_TOTAL => 2,
+                    &TESTDEF_TEST_TOTAL => 3,
                     &TESTDEF_TEST_INDIVIDUAL => false,
                     &TESTDEF_EXPECT => false,
 
@@ -217,7 +217,7 @@ my $oTestDef =
                 },
                 {
                     &TESTDEF_TEST_NAME => 'push-unit',
-                    &TESTDEF_TEST_TOTAL => 2,
+                    &TESTDEF_TEST_TOTAL => 3,
                     &TESTDEF_TEST_INDIVIDUAL => false,
                     &TESTDEF_EXPECT => false,
 

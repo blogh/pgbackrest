@@ -18,6 +18,7 @@ use pgBackRest::Common::Log;
 use pgBackRest::Common::Wait;
 use pgBackRest::Config::Config;
 use pgBackRest::File;
+use pgBackRest::FileCommon;
 use pgBackRest::Protocol::Common;
 
 ####################################################################################################################################
@@ -215,62 +216,66 @@ sub lsnFileRange
 push @EXPORT, qw(lsnFileRange);
 
 ####################################################################################################################################
-# walFind
+# walSegmentFind
 #
 # Returns the filename in the archive of a WAL segment.  Optionally, a wait time can be specified.  In this case an error will be
-# thrown when the WAL segment is not found.
+# thrown when the WAL segment is not found.  If the same WAL segment with multiple checksums is found then error.
 ####################################################################################################################################
-sub walFind
+sub walSegmentFind
 {
     # Assign function parameters, defaults, and log debug info
     my
     (
         $strOperation,
-        $oFile,
-        $strArchiveId,
+        $strArchivePath,
         $strWalSegment,
         $bPartial,
-        $iWaitSeconds
+        $iWaitSeconds,
     ) =
         logDebugParam
         (
             __PACKAGE__ . '::walFind', \@_,
-            {name => 'oFile'},
-            {name => 'strArchiveId'},
+            {name => 'strArchivePath'},
             {name => 'strWalSegment'},
-            {name => 'bPartial'},
-            {name => 'iWaitSeconds', required => false}
+            {name => 'bPartial', default => false},
+            {name => 'iWaitSeconds', required => false},
         );
 
     # Record the start time
     my $oWait = waitInit($iWaitSeconds);
     my @stryWalFileName;
-    my $bNoTimeline = $strWalSegment =~ /^[0-F]{16}$/ ? true : false;
+    my $bTimeline = $strWalSegment =~ /^[0-F]{16}$/ ? false : true;
+
+    # Error if not a segment
+    if ($bTimeline && !walIsSegment($strWalSegment))
+    {
+        confess &log(ERROR, "${strWalSegment} is not a WAL segment", ERROR_ASSERT);
+    }
 
     do
     {
         # If the timeline is on the WAL segment then use it, otherwise contruct a regexp with the major WAL part to find paths
         # where the wal could be found.
-        my @stryTimelineMajor = ('default');
+        my @stryTimelineMajor;
 
-        if ($bNoTimeline)
+        if ($bTimeline)
         {
-            @stryTimelineMajor =
-                $oFile->list(PATH_BACKUP_ARCHIVE, $strArchiveId, '[0-F]{8}' . substr($strWalSegment, 0, 8), undef, true);
+            @stryTimelineMajor = (substr($strWalSegment, 0, 8));
+        }
+        else
+        {
+            @stryTimelineMajor = fileList($strArchivePath, '[0-F]{8}' . substr($strWalSegment, 0, 8), undef, true);
         }
 
         foreach my $strTimelineMajor (@stryTimelineMajor)
         {
-            my $strWalSegmentFind = $bNoTimeline ? $strTimelineMajor . substr($strWalSegment, 8, 8) : $strWalSegment;
-
-            # Determine the path where the requested WAL segment is located
-            my $strArchivePath = dirname($oFile->pathGet(PATH_BACKUP_ARCHIVE, "$strArchiveId/${strWalSegmentFind}"));
+            my $strWalSegmentFind = $bTimeline ? $strWalSegment : $strTimelineMajor . substr($strWalSegment, 8, 16);
 
             # Get the name of the requested WAL segment (may have hash info and compression extension)
-            push(@stryWalFileName, $oFile->list(
-                PATH_BACKUP_ABSOLUTE, $strArchivePath,
+            push(@stryWalFileName, fileList(
+                "${strArchivePath}/${strTimelineMajor}",
                 "^${strWalSegmentFind}" . ($bPartial ? '\\.partial' : '') .
-                    "(-[0-f]+){0,1}(\\.$oFile->{strCompressExtension}){0,1}\$",
+                    "(-[0-f]+){0,1}(\\.gz){0,1}\$",
                 undef, true));
         }
     }
@@ -296,7 +301,7 @@ sub walFind
     );
 }
 
-push @EXPORT, qw(walFind);
+push @EXPORT, qw(walSegmentFind);
 
 ####################################################################################################################################
 # walPath
@@ -366,6 +371,30 @@ sub walIsSegment
         );
 
     return $strWalFile =~ /^[0-F]{24}(\.partial){0,1}$/ ? true : false;
+}
+
+push @EXPORT, qw(walIsSegment);
+
+####################################################################################################################################
+# walIsPartial
+#
+# Is the file a segment and partial.
+####################################################################################################################################
+sub walIsPartial
+{
+    # Assign function parameters, defaults, and log debug info
+    my
+    (
+        $strOperation,
+        $strWalFile,
+    ) =
+        logDebugParam
+        (
+            __PACKAGE__ . '::walIsPartial', \@_,
+            {name => 'strWalFile', trace => true},
+        );
+
+    return walIsSegment($strWalFile) && $strWalFile =~ /\.partial$/ ? true : false;
 }
 
 push @EXPORT, qw(walIsSegment);

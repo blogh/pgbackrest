@@ -122,7 +122,13 @@ sub run
     $self->optionSetTest($oOption, OPTION_PROTOCOL_TIMEOUT, 6);
 
     #-------------------------------------------------------------------------------------------------------------------------------
-    if ($self->begin("ArchivePushAsync->readyList"))
+    if ($self->begin("ArchivePushFile::archivePushFile"))
+    {
+        $self->clean();
+    }
+
+    #-------------------------------------------------------------------------------------------------------------------------------
+    if ($self->begin("ArchivePushAsync->readyList()"))
     {
         $self->clean();
 
