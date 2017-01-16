@@ -9,6 +9,7 @@ use Carp qw(confess);
 
 use Exporter qw(import);
     our @EXPORT = qw();
+use Fcntl qw(SEEK_CUR O_RDONLY); # !!! Only needed until read from buffer
 use File::Basename qw(dirname);
 
 use pgBackRest::Db;
@@ -36,6 +37,22 @@ use constant PG_WAL_SYSTEM_ID_OFFSET_GTE_93                         => 20;
     push @EXPORT, qw(PG_WAL_SYSTEM_ID_OFFSET_GTE_93);
 use constant PG_WAL_SYSTEM_ID_OFFSET_LT_93                          => 12;
     push @EXPORT, qw(PG_WAL_SYSTEM_ID_OFFSET_LT_93);
+
+####################################################################################################################################
+# PostgreSQL WAL magic
+####################################################################################################################################
+my $oWalMagicHash =
+{
+    hex('0xD062') => PG_VERSION_83,
+    hex('0xD063') => PG_VERSION_84,
+    hex('0xD064') => PG_VERSION_90,
+    hex('0xD066') => PG_VERSION_91,
+    hex('0xD071') => PG_VERSION_92,
+    hex('0xD075') => PG_VERSION_93,
+    hex('0xD07E') => PG_VERSION_94,
+    hex('0xD087') => PG_VERSION_95,
+    hex('0xD093') => PG_VERSION_96,
+};
 
 ####################################################################################################################################
 # constructor
@@ -214,6 +231,97 @@ sub lsnFileRange
 }
 
 push @EXPORT, qw(lsnFileRange);
+
+####################################################################################################################################
+# walInfo
+#
+# Retrieve information such as db version and system identifier from a WAL segment.
+####################################################################################################################################
+sub walInfo
+{
+    my $self = shift;
+
+    # Assign function parameters, defaults, and log debug info
+    my
+    (
+        $strOperation,
+        $strWalFile,
+    ) =
+        logDebugParam
+        (
+            __PACKAGE__ . '::walInfo', \@_,
+            {name => 'strWalFile'}
+        );
+
+    # Open the WAL segment and read magic number
+    #-------------------------------------------------------------------------------------------------------------------------------
+    my $hFile;
+    my $tBlock;
+
+    sysopen($hFile, $strWalFile, O_RDONLY)
+        or confess &log(ERROR, "unable to open ${strWalFile}", ERROR_FILE_OPEN);
+
+    # Read magic
+    sysread($hFile, $tBlock, 2) == 2
+        or confess &log(ERROR, "unable to read xlog magic");
+
+    my $iMagic = unpack('S', $tBlock);
+
+    # Map the WAL magic number to the version of PostgreSQL.
+    #
+    # The magic number can be found in src/include/access/xlog_internal.h The offset can be determined by counting bytes in the
+    # XLogPageHeaderData struct, though this value rarely changes.
+    #-------------------------------------------------------------------------------------------------------------------------------
+    my $strDbVersion = $$oWalMagicHash{$iMagic};
+
+    if (!defined($strDbVersion))
+    {
+        confess &log(ERROR, "unexpected WAL magic 0x" . sprintf("%X", $iMagic) . "\n" .
+                     'HINT: is this version of PostgreSQL supported?',
+                     ERROR_VERSION_NOT_SUPPORTED);
+    }
+
+    # Map the WAL PostgreSQL version to the system identifier offset.  The offset can be determined by counting bytes in the
+    # XLogPageHeaderData struct, though this value rarely changes.
+    #-------------------------------------------------------------------------------------------------------------------------------
+    my $iSysIdOffset = $strDbVersion >= PG_VERSION_93 ? PG_WAL_SYSTEM_ID_OFFSET_GTE_93 : PG_WAL_SYSTEM_ID_OFFSET_LT_93;
+
+    # Check flags to be sure the long header is present (this is an extra check to be sure the system id exists)
+    #-------------------------------------------------------------------------------------------------------------------------------
+    sysread($hFile, $tBlock, 2) == 2
+        or confess &log(ERROR, "unable to read xlog info");
+
+    my $iFlag = unpack('S', $tBlock);
+
+    # Make sure that the long header is present or there won't be a system id
+    $iFlag & 2
+        or confess &log(ERROR, "expected long header in flags " . sprintf("%x", $iFlag));
+
+    # Get the system id
+    #-------------------------------------------------------------------------------------------------------------------------------
+    sysseek($hFile, $iSysIdOffset, SEEK_CUR)
+        or confess &log(ERROR, "unable to read padding");
+
+    sysread($hFile, $tBlock, 8) == 8
+        or confess &log(ERROR, "unable to read database system identifier");
+
+    length($tBlock) == 8
+        or confess &log(ERROR, "block is incorrect length");
+
+    close($hFile);
+
+    my $ullDbSysId = unpack('Q', $tBlock);
+
+    # Return from function and log return values if any
+    return logDebugReturn
+    (
+        $strOperation,
+        {name => 'strDbVersion', value => $strDbVersion},
+        {name => 'ullDbSysId', value => $ullDbSysId}
+    );
+}
+
+push @EXPORT, qw(walInfo);
 
 ####################################################################################################################################
 # walSegmentFind
