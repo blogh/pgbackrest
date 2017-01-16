@@ -87,6 +87,20 @@ sub run
     }
 
     ################################################################################################################################
+    if ($self->begin("${strModule}::walIsPartial()"))
+    {
+        #---------------------------------------------------------------------------------------------------------------------------
+        my $strWalSegment = '0000000200ABCDEF00000001';
+
+        $self->testResult(sub {walIsPartial($strWalSegment)}, false, "${strWalSegment} WAL is not partial");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        $strWalSegment = $strWalSegment . '.partial';
+
+        $self->testResult(sub {walIsPartial($strWalSegment)}, true, "${strWalSegment} WAL is partial");
+    }
+
+    ################################################################################################################################
     if ($self->begin("${strModule}::walFind()"))
     {
         my $strArchivePath = $self->testPath();

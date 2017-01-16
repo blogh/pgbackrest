@@ -401,6 +401,6 @@ sub walIsPartial
     return walIsSegment($strWalFile) && $strWalFile =~ /\.partial$/ ? true : false;
 }
 
-push @EXPORT, qw(walIsSegment);
+push @EXPORT, qw(walIsPartial);
 
 1;
