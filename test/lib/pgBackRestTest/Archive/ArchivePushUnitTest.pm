@@ -107,7 +107,7 @@ sub clean
 {
     my $self = shift;
 
-    executeTest("rm -rf $self->{strWalPath}");
+    executeTest('rm -rf ' . $self->testPath() . '/*');
     $self->init();
 }
 
