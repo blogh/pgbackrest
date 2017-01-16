@@ -13,21 +13,16 @@ use Carp qw(confess);
 
 use File::Basename qw(dirname);
 
-# use pgBackRest::Archive::ArchiveInfo;
 use pgBackRest::Archive::ArchivePushAsync;
-# use pgBackRest::DbVersion;
+use pgBackRest::Archive::ArchivePushFile;
 use pgBackRest::Common::Exception;
-# use pgBackRest::Common::Ini;
 use pgBackRest::Common::Log;
-# use pgBackRest::Common::Wait;
 use pgBackRest::Config::Config;
-# use pgBackRest::File;
+use pgBackRest::DbVersion;
 use pgBackRest::FileCommon;
-# use pgBackRest::Manifest;
 
 use pgBackRestTest::Common::ExecuteTest;
 use pgBackRestTest::Common::Host::HostBackupTest;
-# use pgBackRestTest::Common::RunTest;
 use pgBackRestTest::Full::FullCommonTest;
 
 ####################################################################################################################################
@@ -93,7 +88,15 @@ sub init
             )
         );
 
+    # Create WAL path
     filePathCreate($self->{strWalStatusPath}, undef, true, true);
+
+    # Create archive info
+    $self->{strArchivePath} = "$self->{strRepoPath}/archive/" . $self->stanza();
+    filePathCreate($self->{strArchivePath}, undef, true, true);
+
+    my $oArchiveInfo = new pgBackRest::Archive::ArchiveInfo($self->{strArchivePath}, false);
+    $oArchiveInfo->create(PG_VERSION_94, WAL_VERSION_94_SYS_ID, true)
 }
 
 ####################################################################################################################################
@@ -120,6 +123,53 @@ sub run
     $self->optionSetTest($oOption, OPTION_DB_PATH, $self->{strDbPath});
     $self->optionSetTest($oOption, OPTION_DB_TIMEOUT, 5);
     $self->optionSetTest($oOption, OPTION_PROTOCOL_TIMEOUT, 6);
+
+    ################################################################################################################################
+    if ($self->begin("ArchivePushFile::archivePushCheck"))
+    {
+        $self->clean();
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        my $strWalSegment = '000000010000000100000001';
+
+        $self->testResult(sub {archivePushCheck(
+            $self->{oFile}, $strWalSegment, "$self->{strWalPath}/${strWalSegment}", PG_VERSION_94, WAL_VERSION_94_SYS_ID)},
+            '(9.4-1, [undef])', "${strWalSegment} WAL not found");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        my $strWalMajorPath = "$self->{strArchivePath}/9.4-1/" . substr($strWalSegment, 0, 16);
+        my $strWalSegmentHash = "${strWalSegment}-1e34fa1c833090d94b9bb14f2a8d3153dca6ea27";
+
+        $self->walGenerate(
+            $self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $strWalSegment);
+
+        filePathCreate($strWalMajorPath, undef, false, true);
+        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}", "TEST");
+
+        $self->testResult(sub {archivePushCheck(
+            $self->{oFile}, $strWalSegment, "$self->{strWalPath}/${strWalSegment}", PG_VERSION_94, WAL_VERSION_94_SYS_ID);},
+            '(9.4-1, 1e34fa1c833090d94b9bb14f2a8d3153dca6ea27)', "${strWalSegment} WAL found");
+
+        fileRemove("${strWalMajorPath}/${strWalSegmentHash}");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        $strWalSegmentHash = "${strWalSegment}-10be15a0ab8e1653dfab18c83180e74f1507cab1";
+
+        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}", "TEST");
+
+        $self->testException(sub {archivePushCheck(
+            $self->{oFile}, $strWalSegment, "$self->{strWalPath}/${strWalSegment}", PG_VERSION_94, WAL_VERSION_94_SYS_ID)},
+            ERROR_ARCHIVE_DUPLICATE, "WAL segment ${strWalSegment} already exists in the archive");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        my $strHistoryFile = "00000001.history";
+
+        fileStringWrite("$self->{strArchivePath}/9.4-1/${strHistoryFile}", "TEST");
+
+        $self->testResult(sub {archivePushCheck(
+            $self->{oFile}, $strHistoryFile, "$self->{strWalPath}/${strHistoryFile}", PG_VERSION_94, WAL_VERSION_94_SYS_ID);},
+            '(9.4-1, [undef])', "history file ${strHistoryFile} found");
+    }
 
     ################################################################################################################################
     if ($self->begin("ArchivePushFile::archivePushFile"))
@@ -210,22 +260,19 @@ sub run
         $oPushAsync->initServer();
 
         #---------------------------------------------------------------------------------------------------------------------------
-        $self->testResult(
-            sub {my @strResult = $oPushAsync->processQueue(); return \@strResult;}, '(1, 1)', "begin processing ${strSegment}");
+        $self->testResult(sub {$oPushAsync->processQueue()}, '(1, 1)', "begin processing ${strSegment}");
 
         $self->testResult($oPushAsync->{hWalState}, '{000000010000000100000001 => 0}', "${strSegment} not pushed");
 
         #---------------------------------------------------------------------------------------------------------------------------
-        $self->testResult(
-            sub {my @strResult = $oPushAsync->processQueue(); return \@strResult;}, '(0, 0)', "end processing ${strSegment}");
+        $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "end processing ${strSegment}");
 
         $self->testResult($oPushAsync->{hWalState}, '{000000010000000100000001 => 1}', "${strSegment} pushed");
 
         #---------------------------------------------------------------------------------------------------------------------------
         $self->walRemove($self->{strWalPath}, $strSegment);
 
-        $self->testResult(
-            sub {my @strResult = $oPushAsync->processQueue(); return \@strResult;}, '(0, 0)', "${strSegment}.ready removed");
+        $self->testResult(sub {$oPushAsync->processQueue()}, '(0, 0)', "${strSegment}.ready removed");
 
         $self->testResult($oPushAsync->{hWalState}, '{}', "${strSegment} pushed");
     }

@@ -263,7 +263,17 @@ sub testResult
     eval
     {
         logDisable();
-        $strActual = ${logDebugBuild(ref($fnSub) eq 'CODE' ? $fnSub->() : $fnSub)};
+        my @stryResult = ref($fnSub) eq 'CODE' ? $fnSub->() : $fnSub;
+
+        if (@stryResult <= 1)
+        {
+            $strActual = ${logDebugBuild($stryResult[0])};
+        }
+        else
+        {
+            $strActual = ${logDebugBuild(\@stryResult)};
+        }
+
         logEnable();
         return true;
     }
