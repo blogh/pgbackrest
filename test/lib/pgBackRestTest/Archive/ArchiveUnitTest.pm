@@ -105,7 +105,7 @@ sub run
 
         #---------------------------------------------------------------------------------------------------------------------------
         $self->testException(
-            sub {walSegmentFind($strArchivePath, $strWalSegment, undef, .1)}, ERROR_ARCHIVE_TIMEOUT,
+            sub {walSegmentFind($strArchivePath, $strWalSegment, .1)}, ERROR_ARCHIVE_TIMEOUT,
             "could not find WAL segment ${strWalSegment} after 0.1 second(s)");
 
         #---------------------------------------------------------------------------------------------------------------------------
@@ -155,16 +155,17 @@ sub run
         fileRemove("${strWalMajorPath}/${strWalSegmentHash2}");
 
         #---------------------------------------------------------------------------------------------------------------------------
-        $strWalSegmentHash = "${strWalSegment}.partial-996195c807713ef9262170043e7222cb150aef70";
+        $strWalSegment = $strWalSegment . '.partial';
+        $strWalSegmentHash = "${strWalSegment}-996195c807713ef9262170043e7222cb150aef70";
         fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}", "TEST");
 
         $self->testResult(
             sub {walSegmentFind($strArchivePath, $strWalSegment)}, undef,
-            "${strWalSegment} partial WAL not found (find partial not requested)");
+            "${strWalSegment} WAL not found");
 
         #---------------------------------------------------------------------------------------------------------------------------
-        $self->testResult(
-            sub {walSegmentFind($strArchivePath, $strWalSegment, true)}, $strWalSegmentHash, "${strWalSegment} partial WAL found");
+        # $self->testResult(
+        #     sub {walSegmentFind($strArchivePath, $strWalSegment, true)}, $strWalSegmentHash, "${strWalSegment} partial WAL found");
     }
 }
 

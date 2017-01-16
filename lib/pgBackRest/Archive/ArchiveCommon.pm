@@ -229,7 +229,6 @@ sub walSegmentFind
         $strOperation,
         $strArchivePath,
         $strWalSegment,
-        $bPartial,
         $iWaitSeconds,
     ) =
         logDebugParam
@@ -237,7 +236,6 @@ sub walSegmentFind
             __PACKAGE__ . '::walFind', \@_,
             {name => 'strArchivePath'},
             {name => 'strWalSegment'},
-            {name => 'bPartial', default => false},
             {name => 'iWaitSeconds', required => false},
         );
 
@@ -248,6 +246,9 @@ sub walSegmentFind
     {
         confess &log(ERROR, "${strWalSegment} is not a WAL segment", ERROR_ASSERT);
     }
+
+    # Test if partial
+    my $bPartial = $strWalSegment =~ /\.partial$/ ? true : false;
 
     # Loop and wait for file to appear
     my $oWait = waitInit($iWaitSeconds);
