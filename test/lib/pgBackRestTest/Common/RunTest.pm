@@ -17,6 +17,7 @@ use File::Basename qw(dirname);
 
 use pgBackRest::Common::Exception;
 use pgBackRest::Common::Log;
+use pgBackRest::Common::Wait;
 
 use pgBackRestTest::Common::LogTest;
 use pgBackRestTest::Common::DefineTest;
@@ -256,45 +257,59 @@ sub testResult
     my $fnSub = shift;
     my $strExpected = shift;
     my $strDescription = shift;
+    my $iWaitSeconds = shift;
 
     &log(INFO, '     ' . (defined($strDescription) ? $strDescription : 'no description'));
     my $strActual;
 
-    eval
-    {
-        logDisable();
-        my @stryResult = ref($fnSub) eq 'CODE' ? $fnSub->() : $fnSub;
+    my $oWait = waitInit(defined($iWaitSeconds) ? $iWaitSeconds : 0);
+    my $bDone = false;
 
-        if (@stryResult <= 1)
+    do
+    {
+        eval
         {
-            $strActual = ${logDebugBuild($stryResult[0])};
+            logDisable();
+            my @stryResult = ref($fnSub) eq 'CODE' ? $fnSub->() : $fnSub;
+
+            if (@stryResult <= 1)
+            {
+                $strActual = ${logDebugBuild($stryResult[0])};
+            }
+            else
+            {
+                $strActual = ${logDebugBuild(\@stryResult)};
+            }
+
+            logEnable();
+            return true;
+        }
+        or do
+        {
+            logEnable();
+
+            if (!isException($EVAL_ERROR))
+            {
+                confess "unexpected standard Perl exception" . (defined($EVAL_ERROR) ? ": ${EVAL_ERROR}" : '');
+            }
+
+            confess &logException($EVAL_ERROR);
+        };
+
+        if ($strActual ne (defined($strExpected) ? $strExpected : "[undef]"))
+        {
+            if (!waitMore($oWait))
+            {
+                confess
+                    'expected ' . (defined($strExpected) ? "\"${strExpected}\"" : '[undef]') .
+                    " but actual was " . (defined($strActual) ? "\"${strActual}\"" : '[undef]');
+            }
         }
         else
         {
-            $strActual = ${logDebugBuild(\@stryResult)};
+            $bDone = true;
         }
-
-        logEnable();
-        return true;
-    }
-    or do
-    {
-        logEnable();
-
-        if (!isException($EVAL_ERROR))
-        {
-            confess "unexpected standard Perl exception" . (defined($EVAL_ERROR) ? ": ${EVAL_ERROR}" : '');
-        }
-
-        confess &logException($EVAL_ERROR);
-    };
-
-    if ($strActual ne (defined($strExpected) ? $strExpected : "[undef]"))
-    {
-        confess
-            'expected ' . (defined($strExpected) ? "\"${strExpected}\"" : '[undef]') .
-            " but actual was " . (defined($strActual) ? "\"${strActual}\"" : '[undef]');
-    }
+    } while (!$bDone);
 }
 
 ####################################################################################################################################

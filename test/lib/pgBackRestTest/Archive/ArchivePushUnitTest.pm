@@ -271,7 +271,7 @@ sub run
         $self->testResult($oPushAsync->{hWalState}, '{000000010000000100000001 => 0}', "${strSegment} not pushed");
 
         #---------------------------------------------------------------------------------------------------------------------------
-        $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "end processing ${strSegment}");
+        $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "end processing ${strSegment}", 10);
 
         $self->testResult($oPushAsync->{hWalState}, '{000000010000000100000001 => 1}', "${strSegment} pushed");
 

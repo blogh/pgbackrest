@@ -253,7 +253,8 @@ sub processQueue
     # Add files to the queue
     foreach my $strWalFile (@{$stryWalFile})
     {
-        $self->{oArchiveProcess}->queueJob(1, 'default', $strWalFile, OP_ARCHIVE_PUSH_FILE, [$self->{strWalPath}, $strWalFile]);
+        $self->{oArchiveProcess}->queueJob(
+            1, 'default', $strWalFile, OP_ARCHIVE_PUSH_FILE, [$self->{strWalPath}, $strWalFile, optionGet(OPTION_COMPRESS)]);
     }
 
     # Process the queue

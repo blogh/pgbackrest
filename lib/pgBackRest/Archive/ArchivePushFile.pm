@@ -128,6 +128,8 @@ sub archivePushFile
             {name => 'bCompress'},
         );
 
+    sleep(1);
+
     # !!! Put some logic in here
 
     # Return from function and log return values if any
