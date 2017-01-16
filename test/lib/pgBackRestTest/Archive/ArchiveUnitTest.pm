@@ -17,6 +17,7 @@ use pgBackRest::Archive::ArchiveCommon;
 use pgBackRest::Common::Exception;
 use pgBackRest::Common::Log;
 use pgBackRest::Config::Config;
+use pgBackRest::FileCommon;
 
 ####################################################################################################################################
 # clean
@@ -91,12 +92,79 @@ sub run
         my $strArchivePath = $self->testPath();
 
         #---------------------------------------------------------------------------------------------------------------------------
-        $self->testResult(sub {walSegmentFind($strArchivePath, '000000010000000100000001')}, undef, 'wal not found');
+        my $strWalSegment = '000000010000000100000001ZZ';
+
+        $self->testException(
+            sub {walSegmentFind($strArchivePath, $strWalSegment)}, ERROR_ASSERT, "${strWalSegment} is not a WAL segment");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        $strWalSegment = '000000010000000100000001';
+
+        $self->testResult(
+            sub {walSegmentFind($strArchivePath, $strWalSegment)}, undef, "${strWalSegment} WAL not found");
 
         #---------------------------------------------------------------------------------------------------------------------------
         $self->testException(
-            sub {walSegmentFind($strArchivePath, '000000010000000100000001ZZ')}, ERROR_ASSERT,
-            '000000010000000100000001ZZ is not a WAL segment');
+            sub {walSegmentFind($strArchivePath, $strWalSegment, undef, .1)}, ERROR_ARCHIVE_TIMEOUT,
+            "could not find WAL segment ${strWalSegment} after 0.1 second(s)");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        my $strWalMajorPath = "${strArchivePath}/" . substr($strWalSegment, 0, 16);
+        my $strWalSegmentHash = "${strWalSegment}-a0b0d38b8aa263e25b8ff52a0a4ba85b6be97f9b";
+
+        filePathCreate($strWalMajorPath, undef, false, true);
+        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}", "TEST");
+
+        $self->testResult(sub {walSegmentFind($strArchivePath, $strWalSegment)}, $strWalSegmentHash, "${strWalSegment} WAL found");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        $self->testResult(
+            sub {walSegmentFind($strArchivePath, substr($strWalSegment, 8, 16))}, $strWalSegmentHash,
+            "${strWalSegment} WAL found without timeline");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        my $strWalSegmentHash2 = "${strWalSegment}-53aa5d59515aa7288ae02ba414c009aed1ca73ad.gz";
+
+        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash2}", "TEST");
+
+        $self->testException(
+            sub {walSegmentFind($strArchivePath, $strWalSegment)}, ERROR_ARCHIVE_DUPLICATE,
+            "duplicates found in archive for WAL segment ${strWalSegment}: ${strWalSegmentHash2}, ${strWalSegmentHash}");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        my $strWalSegment3 = '00000002' . substr($strWalSegment, 8, 16);
+        my $strWalSegmentHash3 = "${strWalSegment3}-dcdd09246e1918e88c67cf44b35edc23b803d879";
+        my $strWalMajorPath3 = "${strArchivePath}/" . substr($strWalSegment3, 0, 16);
+
+        filePathCreate($strWalMajorPath3, undef, false, true);
+        fileStringWrite("${strWalMajorPath3}/${strWalSegmentHash3}", "TEST");
+
+        $self->testException(
+            sub {walSegmentFind($strArchivePath, substr($strWalSegment, 8, 16))}, ERROR_ARCHIVE_DUPLICATE,
+            "duplicates found in archive for WAL segment XXXXXXXX" . substr($strWalSegment, 8, 16) .
+            ": ${strWalSegmentHash2}, ${strWalSegmentHash}, ${strWalSegmentHash3}");
+
+        fileRemove("${strWalMajorPath}/${strWalSegmentHash}");
+        fileRemove("${strWalMajorPath3}/${strWalSegmentHash3}");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        $self->testResult(
+            sub {walSegmentFind($strArchivePath, $strWalSegment)}, $strWalSegmentHash2,
+            "${strWalSegment} WAL found with compressed extension");
+
+        fileRemove("${strWalMajorPath}/${strWalSegmentHash2}");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        $strWalSegmentHash = "${strWalSegment}.partial-996195c807713ef9262170043e7222cb150aef70";
+        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}", "TEST");
+
+        $self->testResult(
+            sub {walSegmentFind($strArchivePath, $strWalSegment)}, undef,
+            "${strWalSegment} WAL not found (only partial file exists, but partial not requested)");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        $self->testResult(
+            sub {walSegmentFind($strArchivePath, $strWalSegment, true)}, $strWalSegmentHash, "${strWalSegment} partial WAL found");
     }
 }
 

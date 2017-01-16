@@ -241,50 +241,55 @@ sub walSegmentFind
             {name => 'iWaitSeconds', required => false},
         );
 
-    # Record the start time
-    my $oWait = waitInit($iWaitSeconds);
-    my @stryWalFileName;
+    # Error if not a segment
     my $bTimeline = $strWalSegment =~ /^[0-F]{16}$/ ? false : true;
 
-    # Error if not a segment
     if ($bTimeline && !walIsSegment($strWalSegment))
     {
         confess &log(ERROR, "${strWalSegment} is not a WAL segment", ERROR_ASSERT);
     }
 
+    # Loop and wait for file to appear
+    my $oWait = waitInit($iWaitSeconds);
+    my @stryWalFileName;
+
     do
     {
-        # If the timeline is on the WAL segment then use it, otherwise contruct a regexp with the major WAL part to find paths
+        # If the WAL segment includes the timeline then use it, otherwise contruct a regexp with the major WAL part to find paths
         # where the wal could be found.
         my @stryTimelineMajor;
 
         if ($bTimeline)
         {
-            @stryTimelineMajor = (substr($strWalSegment, 0, 8));
+            @stryTimelineMajor = (substr($strWalSegment, 0, 16));
         }
         else
         {
             @stryTimelineMajor = fileList($strArchivePath, '[0-F]{8}' . substr($strWalSegment, 0, 8), undef, true);
         }
 
+        # Search each timelin/major path
         foreach my $strTimelineMajor (@stryTimelineMajor)
         {
+            # Construct the name of the WAL segment to find
             my $strWalSegmentFind = $bTimeline ? $strWalSegment : $strTimelineMajor . substr($strWalSegment, 8, 16);
 
             # Get the name of the requested WAL segment (may have hash info and compression extension)
             push(@stryWalFileName, fileList(
                 "${strArchivePath}/${strTimelineMajor}",
-                "^${strWalSegmentFind}" . ($bPartial ? '\\.partial' : '') .
-                    "(-[0-f]+){0,1}(\\.gz){0,1}\$",
+                "^${strWalSegmentFind}" . ($bPartial ? "\\.partial" : '') . "-[0-f]{40}(\\." . COMPRESS_EXT . "){0,1}\$",
                 undef, true));
         }
     }
     while (@stryWalFileName == 0 && waitMore($oWait));
 
-    # If there is more than one matching archive file then there is a serious issue - likely a bug in the archiver
+    # If there is more than one matching archive file then there is a serious issue - either a bug in the archiver or the user has
+    # copied files around or removed archive.info.
     if (@stryWalFileName > 1)
     {
-        confess &log(ASSERT, @stryWalFileName . " duplicate files found for ${strWalSegment}", ERROR_ARCHIVE_DUPLICATE);
+        confess &log(ERROR,
+            "duplicates found in archive for WAL segment " . ($bTimeline ? $strWalSegment : "XXXXXXXX${strWalSegment}") . ': ' .
+            join(', ', @stryWalFileName), ERROR_ARCHIVE_DUPLICATE);
     }
 
     # If waiting and no WAL segment was found then throw an error
