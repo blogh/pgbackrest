@@ -12,6 +12,7 @@ use warnings FATAL => qw(all);
 use Carp qw(confess);
 
 use File::Basename qw(dirname);
+use Storable qw(dclone);
 
 use pgBackRest::Archive::ArchivePushAsync;
 use pgBackRest::Archive::ArchivePushFile;
@@ -128,7 +129,7 @@ sub run
     if ($self->begin("ArchivePushFile::archivePushCheck"))
     {
         $self->clean();
-        logDisable(); $self->configLoadExpect($oOption, CMD_ARCHIVE_PUSH); logEnable();
+        logDisable(); $self->configLoadExpect(dclone($oOption), CMD_ARCHIVE_PUSH); logEnable();
 
         #---------------------------------------------------------------------------------------------------------------------------
         my $strWalSegment = '000000010000000100000001';
@@ -258,7 +259,7 @@ sub run
         my $iWalMajor = 1;
         my $iWalMinor = 1;
 
-        logDisable(); $self->configLoadExpect($oOption, CMD_ARCHIVE_PUSH); logEnable();
+        logDisable(); $self->configLoadExpect(dclone($oOption), CMD_ARCHIVE_PUSH); logEnable();
 
         my $strSegment = $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++);
         $self->walGenerate($self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $strSegment);
