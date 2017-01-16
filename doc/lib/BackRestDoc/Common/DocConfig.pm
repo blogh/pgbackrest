@@ -95,7 +95,7 @@ sub process
 
     foreach my $strOption (sort(keys(%{$oOptionRule})))
     {
-        if ($strOption =~ /^test/ || $strOption eq 'fork')
+        if ($strOption =~ /^test/)
         {
             next;
         }

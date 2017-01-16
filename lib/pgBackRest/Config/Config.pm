@@ -238,8 +238,6 @@ use constant OPTION_TEST                                            => 'test';
     push @EXPORT, qw(OPTION_TEST);
 use constant OPTION_TEST_DELAY                                      => 'test-delay';
     push @EXPORT, qw(OPTION_TEST_DELAY);
-use constant OPTION_TEST_FORK                                       => 'fork';
-    push @EXPORT, qw(OPTION_TEST_FORK);
 use constant OPTION_TEST_POINT                                      => 'test-point';
     push @EXPORT, qw(OPTION_TEST_POINT);
 
@@ -987,17 +985,6 @@ my %oOptionRule =
         {
             &CMD_ARCHIVE_PUSH => true,
             &CMD_BACKUP => true
-        }
-    },
-
-    &OPTION_TEST_FORK =>
-    {
-        &OPTION_RULE_TYPE => OPTION_TYPE_BOOLEAN,
-        &OPTION_RULE_DEFAULT => OPTION_DEFAULT_TEST_FORK,
-        &OPTION_RULE_NEGATE => true,
-        &OPTION_RULE_COMMAND =>
-        {
-            &CMD_ARCHIVE_PUSH => true
         }
     },
 
