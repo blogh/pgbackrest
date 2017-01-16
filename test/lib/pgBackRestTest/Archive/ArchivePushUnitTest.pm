@@ -128,12 +128,13 @@ sub run
     if ($self->begin("ArchivePushFile::archivePushCheck"))
     {
         $self->clean();
+        logDisable(); $self->configLoadExpect($oOption, CMD_ARCHIVE_PUSH); logEnable();
 
         #---------------------------------------------------------------------------------------------------------------------------
         my $strWalSegment = '000000010000000100000001';
 
         $self->testResult(sub {archivePushCheck(
-            $self->{oFile}, $strWalSegment, "$self->{strWalPath}/${strWalSegment}", PG_VERSION_94, WAL_VERSION_94_SYS_ID)},
+            $self->{oFile}, $strWalSegment, PG_VERSION_94, WAL_VERSION_94_SYS_ID, "$self->{strWalPath}/${strWalSegment}")},
             '(9.4-1, [undef])', "${strWalSegment} WAL not found");
 
         #---------------------------------------------------------------------------------------------------------------------------
@@ -147,7 +148,7 @@ sub run
         fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}", "TEST");
 
         $self->testResult(sub {archivePushCheck(
-            $self->{oFile}, $strWalSegment, "$self->{strWalPath}/${strWalSegment}", PG_VERSION_94, WAL_VERSION_94_SYS_ID);},
+            $self->{oFile}, $strWalSegment, PG_VERSION_94, WAL_VERSION_94_SYS_ID, "$self->{strWalPath}/${strWalSegment}")},
             '(9.4-1, 1e34fa1c833090d94b9bb14f2a8d3153dca6ea27)', "${strWalSegment} WAL found");
 
         fileRemove("${strWalMajorPath}/${strWalSegmentHash}");
@@ -158,8 +159,13 @@ sub run
         fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}", "TEST");
 
         $self->testException(sub {archivePushCheck(
-            $self->{oFile}, $strWalSegment, "$self->{strWalPath}/${strWalSegment}", PG_VERSION_94, WAL_VERSION_94_SYS_ID)},
+            $self->{oFile}, $strWalSegment, PG_VERSION_94, WAL_VERSION_94_SYS_ID, "$self->{strWalPath}/${strWalSegment}")},
             ERROR_ARCHIVE_DUPLICATE, "WAL segment ${strWalSegment} already exists in the archive");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        $self->testException(sub {archivePushCheck(
+            $self->{oFile}, $strWalSegment, PG_VERSION_94, WAL_VERSION_94_SYS_ID)},
+            ERROR_ASSERT, "strFile is required in File->hash");
 
         #---------------------------------------------------------------------------------------------------------------------------
         my $strHistoryFile = "00000001.history";
@@ -167,7 +173,7 @@ sub run
         fileStringWrite("$self->{strArchivePath}/9.4-1/${strHistoryFile}", "TEST");
 
         $self->testResult(sub {archivePushCheck(
-            $self->{oFile}, $strHistoryFile, "$self->{strWalPath}/${strHistoryFile}", PG_VERSION_94, WAL_VERSION_94_SYS_ID);},
+            $self->{oFile}, $strHistoryFile, PG_VERSION_94, WAL_VERSION_94_SYS_ID, "$self->{strWalPath}/${strHistoryFile}")},
             '(9.4-1, [undef])', "history file ${strHistoryFile} found");
     }
 

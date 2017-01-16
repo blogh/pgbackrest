@@ -15,6 +15,7 @@ use File::Basename qw(basename);
 use pgBackRest::Archive::ArchiveCommon;
 use pgBackRest::Common::Exception;
 use pgBackRest::Common::Log;
+use pgBackRest::Config::Config;
 use pgBackRest::File;
 use pgBackRest::Protocol::Common;
 
@@ -29,18 +30,18 @@ sub archivePushCheck
         $strOperation,
         $oFile,
         $strArchiveFile,
-        $strWalFile,
         $strDbVersion,
         $ullDbSysId,
+        $strWalFile,
     ) =
         logDebugParam
         (
             __PACKAGE__ . '::archivePushCheck', \@_,
             {name => 'oFile'},
             {name => 'strArchiveFile'},
-            {name => 'strWalFile'},
             {name => 'strDbVersion'},
             {name => 'ullDbSysId'},
+            {name => 'strWalFile', required => false},
         );
 
     # Set operation and debug strings
@@ -54,7 +55,7 @@ sub archivePushCheck
     {
         # Execute the command
         ($strArchiveId, $strChecksum) = $oFile->{oProtocol}->cmdExecute(
-            OP_ARCHIVE_PUSH_CHECK, [$strArchiveFile, $strWalFile, $strDbVersion, $ullDbSysId], true);
+            OP_ARCHIVE_PUSH_CHECK, [$strArchiveFile, $strDbVersion, $ullDbSysId], true);
     }
     else
     {
@@ -80,7 +81,7 @@ sub archivePushCheck
         }
     }
 
-    if (defined($strChecksum) && !$oFile->isRemote(PATH_BACKUP_ARCHIVE))
+    if (defined($strChecksum) && !commandTest(CMD_REMOTE))
     {
         my $strChecksumNew = $oFile->hash(PATH_DB_ABSOLUTE, $strWalFile);
 
