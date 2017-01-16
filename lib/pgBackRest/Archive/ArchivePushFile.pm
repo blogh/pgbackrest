@@ -13,6 +13,7 @@ use Exporter qw(import);
 use File::Basename qw(basename);
 
 use pgBackRest::Archive::ArchiveCommon;
+use pgBackRest::Archive::ArchiveInfo;
 use pgBackRest::Common::Exception;
 use pgBackRest::Common::Log;
 use pgBackRest::Config::Config;
@@ -39,8 +40,8 @@ sub archivePushCheck
             __PACKAGE__ . '::archivePushCheck', \@_,
             {name => 'oFile'},
             {name => 'strArchiveFile'},
-            {name => 'strDbVersion'},
-            {name => 'ullDbSysId'},
+            {name => 'strDbVersion', required => false},
+            {name => 'ullDbSysId', required => false},
             {name => 'strWalFile', required => false},
         );
 
@@ -118,6 +119,7 @@ sub archivePushFile
         $strWalPath,
         $strWalFile,
         $bCompress,
+        $bRepoSync,
     ) =
         logDebugParam
         (
@@ -126,11 +128,46 @@ sub archivePushFile
             {name => 'strWalPath'},
             {name => 'strWalFile'},
             {name => 'bCompress'},
+            {name => 'bRepoSync'},
         );
 
-    sleep(1);
+    # Get cluster info from the WAL
+    my $strDbVersion;
+    my $ullDbSysId;
 
-    # !!! Put some logic in here
+    if (walIsSegment($strWalFile))
+    {
+        ($strDbVersion, $ullDbSysId) = walInfo("${strWalPath}/${strWalFile}");
+    }
+
+    # Check if the WAL already exists in the repo
+    my ($strArchiveId, $strChecksum) = archivePushCheck(
+        $oFile, $strWalFile, $strDbVersion, $ullDbSysId, walIsSegment($strWalFile) ? "${strWalPath}/${strWalFile}" : undef);
+
+    # Only copy the WAL segment if checksum is not defined.  If checksum is defined it means that the WAL segment already exists
+    # in the repository with the same checksum (else there would have been an error on checksum mismatch).
+    if (!defined($strChecksum))
+    {
+        my $strArchiveFile = "${strArchiveId}/${strWalFile}";
+
+        # Append compression extension
+        if (walIsSegment($strWalFile) && $bCompress)
+        {
+            $strArchiveFile .= '.' . $oFile->{strCompressExtension};
+        }
+
+        # Copy the WAL segment
+        $oFile->copy(
+            PATH_DB_ABSOLUTE, "${strWalPath}/${strWalFile}",        # Source type/file
+            PATH_BACKUP_ARCHIVE, $strArchiveFile,                   # Destination type/file
+            false,                                                  # Source is not compressed
+            walIsSegment($strWalFile) && $bCompress,                # Destination compress is configurable
+            undef, undef, undef,                                    # Unused params
+            true,                                                   # Create path if it does not exist
+            undef, undef,                                           # Default User and group
+            walIsSegment($strWalFile),                              # Append checksum if WAL segment
+            $bRepoSync);                                            # Sync repo directories?
+    }
 
     # Return from function and log return values if any
     return logDebugReturn($strOperation);

@@ -124,6 +124,7 @@ sub run
     $self->optionSetTest($oOption, OPTION_DB_PATH, $self->{strDbPath});
     $self->optionSetTest($oOption, OPTION_DB_TIMEOUT, 5);
     $self->optionSetTest($oOption, OPTION_PROTOCOL_TIMEOUT, 6);
+    $self->optionSetTest($oOption, OPTION_REPO_PATH, $self->{strRepoPath});
 
     ################################################################################################################################
     if ($self->begin("ArchivePushFile::archivePushCheck"))
@@ -269,12 +270,11 @@ sub run
         #---------------------------------------------------------------------------------------------------------------------------
         $self->testResult(sub {$oPushAsync->processQueue()}, '(1, 1)', "begin processing ${strSegment}");
 
-        $self->testResult($oPushAsync->{hWalState}, '{000000010000000100000001 => 0}', "${strSegment} not pushed");
+        $self->testResult($oPushAsync->{hWalState}, "{${strSegment} => 0}", "${strSegment} not pushed");
 
-        #---------------------------------------------------------------------------------------------------------------------------
         $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "end processing ${strSegment}", 10);
 
-        $self->testResult($oPushAsync->{hWalState}, '{000000010000000100000001 => 1}', "${strSegment} pushed");
+        $self->testResult($oPushAsync->{hWalState}, "{${strSegment} => 1}", "${strSegment} pushed");
 
         #---------------------------------------------------------------------------------------------------------------------------
         $self->walRemove($self->{strWalPath}, $strSegment);
@@ -282,6 +282,29 @@ sub run
         $self->testResult(sub {$oPushAsync->processQueue()}, '(0, 0)', "${strSegment}.ready removed");
 
         $self->testResult($oPushAsync->{hWalState}, '{}', "${strSegment} pushed");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        my $strHistoryFile = "00000001.history";
+
+        fileStringWrite("$self->{strWalPath}/${strHistoryFile}", "TEST");
+        fileStringWrite("$self->{strWalStatusPath}/$strHistoryFile.ready", 'TEST');
+
+        my $strBackupFile = "${strSegment}.00000028.backup";
+
+        fileStringWrite("$self->{strWalPath}/${strBackupFile}", "TEST");
+        fileStringWrite("$self->{strWalStatusPath}/$strBackupFile.ready", 'TEST');
+
+        $self->testResult(sub {$oPushAsync->processQueue()}, '(2, 2)', "begin processing ${strHistoryFile}, ${strBackupFile}");
+
+        $self->testResult(
+            $oPushAsync->{hWalState}, "{${strHistoryFile} => 0, ${strBackupFile} => 0}",
+            "${strHistoryFile}, ${strBackupFile} not pushed");
+
+        $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "end processing ${strHistoryFile}, ${strBackupFile}", 10);
+
+        $self->testResult(
+            $oPushAsync->{hWalState}, "{${strHistoryFile} => 1, ${strBackupFile} => 1}",
+            "${strHistoryFile}, ${strBackupFile} pushed");
     }
 }
 
