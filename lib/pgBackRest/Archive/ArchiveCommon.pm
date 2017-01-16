@@ -247,9 +247,6 @@ sub walSegmentFind
         confess &log(ERROR, "${strWalSegment} is not a WAL segment", ERROR_ASSERT);
     }
 
-    # Test if partial
-    my $bPartial = $strWalSegment =~ /\.partial$/ ? true : false;
-
     # Loop and wait for file to appear
     my $oWait = waitInit($iWaitSeconds);
     my @stryWalFileName;
@@ -278,7 +275,8 @@ sub walSegmentFind
             # Get the name of the requested WAL segment (may have hash info and compression extension)
             push(@stryWalFileName, fileList(
                 "${strArchivePath}/${strTimelineMajor}",
-                "^${strWalSegmentFind}" . ($bPartial ? "\\.partial" : '') . "-[0-f]{40}(\\." . COMPRESS_EXT . "){0,1}\$",
+                "^${strWalSegmentFind}" . (walIsPartial($strWalSegment) ? "\\.partial" : '') .
+                    "-[0-f]{40}(\\." . COMPRESS_EXT . "){0,1}\$",
                 undef, true));
         }
     }
