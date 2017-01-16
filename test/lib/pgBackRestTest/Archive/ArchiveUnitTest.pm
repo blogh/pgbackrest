@@ -160,7 +160,7 @@ sub run
 
         $self->testResult(
             sub {walSegmentFind($strArchivePath, $strWalSegment)}, undef,
-            "${strWalSegment} WAL not found (only partial file exists, but partial not requested)");
+            "${strWalSegment} partial WAL not found (find partial not requested)");
 
         #---------------------------------------------------------------------------------------------------------------------------
         $self->testResult(
