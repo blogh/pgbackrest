@@ -283,33 +283,45 @@ sub run
 
         my $oPushAsync = new pgBackRest::Archive::ArchivePushAsync(
             $self->{strWalPath}, $self->{strSpoolPath}, $self->backrestExe());
+        logDisable(); $self->configLoadExpect(dclone($oOption), CMD_ARCHIVE_PUSH); logEnable();
+        $oPushAsync->initServer();
 
         my $iWalTimeline = 1;
         my $iWalMajor = 1;
         my $iWalMinor = 1;
 
-        logDisable(); $self->configLoadExpect(dclone($oOption), CMD_ARCHIVE_PUSH); logEnable();
-
+        #---------------------------------------------------------------------------------------------------------------------------
         my $strSegment = $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++);
         $self->walGenerate($self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $strSegment);
 
-        $oPushAsync->initServer();
-
-        #---------------------------------------------------------------------------------------------------------------------------
         $self->testResult(sub {$oPushAsync->processQueue()}, '(1, 1)', "begin processing ${strSegment}");
 
         $self->testResult(sub {fileList($self->{strSpoolPath})}, '[undef]', "${strSegment} not pushed");
 
-        $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "end processing ${strSegment}", 10);
+        # Generate an error
+        my $strSegmentError = $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++);
+        fileStringWrite("$self->{strWalStatusPath}/$strSegmentError.ready");
 
-        $self->testResult(sub {fileList($self->{strSpoolPath})}, "${strSegment}.ok", "${strSegment} pushed");
+        $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "end processing ${strSegment}", 10);
+        $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "end processing errored ${strSegmentError}", 10);
+
+        $self->testResult(
+            sub {fileStringRead("$self->{strSpoolPath}/$strSegmentError.error")},
+            ERROR_FILE_OPEN . "\nraised on local-1 host: unable to open $self->{strWalPath}/${strSegmentError}",
+            "test ${strSegmentError}.error contents");
+
+        $self->testResult(
+            sub {fileList($self->{strSpoolPath})}, "(${strSegment}.ok, ${strSegmentError}.error)", "${strSegment} pushed");
 
         #---------------------------------------------------------------------------------------------------------------------------
         $self->walRemove($self->{strWalPath}, $strSegment);
 
         $self->testResult(sub {$oPushAsync->processQueue()}, '(0, 0)', "remove ${strSegment}.ready");
 
-        $self->testResult(sub {fileList($self->{strSpoolPath})}, '[undef]', "${strSegment} removed");
+        $self->testResult(sub {fileList($self->{strSpoolPath})}, "${strSegmentError}.error", "${strSegment} removed");
+
+        fileRemove("$self->{strWalStatusPath}/$strSegmentError.ready");
+        fileRemove("$self->{strSpoolPath}/$strSegmentError.error");
 
         #---------------------------------------------------------------------------------------------------------------------------
         my $strHistoryFile = "00000001.history";
@@ -348,6 +360,8 @@ sub run
         $self->walGenerate($self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $strSegment);
 
         $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "processed ${strSegment}.gz", 10);
+
+        #---------------------------------------------------------------------------------------------------------------------------
     }
 }
 

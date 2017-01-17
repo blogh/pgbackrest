@@ -8,9 +8,11 @@ package pgBackRest::Protocol::LocalProcess;
 use strict;
 use warnings FATAL => qw(all);
 use Carp qw(confess);
+use English '-no_match_vars';
 
 use IO::Select;
 
+use pgBackRest::Common::Exception;
 use pgBackRest::Common::Log;
 use pgBackRest::Config::Config;
 use pgBackRest::Protocol::LocalMaster;
@@ -32,6 +34,7 @@ sub new
         $self->{strHostType},
         $self->{iSelectTimeout},
         $self->{strBackRestBin},
+        $self->{bConfessError},
     ) =
         logDebugParam
         (
@@ -39,6 +42,7 @@ sub new
             {name => 'strHostType'},
             {name => 'iSelectTimeout', default => int(optionGet(OPTION_PROTOCOL_TIMEOUT) / 2)},
             {name => 'strBackRestBin', default => BACKREST_BIN},
+            {name => 'bConfessError', default => true},
         );
 
     # Declare host map and array
@@ -320,7 +324,31 @@ sub process
 
             # Get the job result
             my $hJob = $hLocal->{hJob};
-            $hJob->{rResult} = $hLocal->{oLocal}->outputRead(true, undef, undef, true);
+
+            eval
+            {
+                $hJob->{rResult} = $hLocal->{oLocal}->outputRead(true, undef, undef, true);
+                return true;
+            }
+            or do
+            {
+                my $oException = $EVAL_ERROR;
+
+                # If not a backrest exception then always confess it - something has gone very wrong
+                confess $oException if (!isException($oException));
+
+                # If errors should be confessed then do so
+                if ($self->{bConfessError})
+                {
+                    confess logException($oException);
+                }
+                # Else store exception so caller can process it
+                else
+                {
+                    $hJob->{oException} = $oException;
+                }
+            };
+
             $hJob->{iProcessId} = $hLocal->{iProcessId};
             push(@hyResult, $hJob);
 
@@ -555,7 +583,7 @@ sub processing
     return logDebugReturn
     (
         $strOperation,
-        {name => 'bProcessing', value => $self->{bProcessing}}
+        {name => 'bProcessing', value => $self->{bProcessing}, trace => true}
     );
 }
 

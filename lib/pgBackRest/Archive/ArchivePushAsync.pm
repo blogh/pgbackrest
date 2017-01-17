@@ -160,7 +160,7 @@ sub initServer
     filePathCreate($self->{strSpoolPath}, undef, true, true);
 
     # Initialize the backup process
-    $self->{oArchiveProcess} = new pgBackRest::Protocol::LocalProcess(BACKUP, 0, $self->{strBackRestBin});
+    $self->{oArchiveProcess} = new pgBackRest::Protocol::LocalProcess(BACKUP, 0, $self->{strBackRestBin}, false);
     $self->{oArchiveProcess}->hostAdd(1, optionGet(OPTION_PROCESS_MAX));
 
     # Return from function and log return values if any
@@ -217,8 +217,17 @@ sub processQueue
             {
                 my $strWalFile = @{$hJob->{rParam}}[1];
 
-                delete($self->{hWalState}{$strWalFile});
-                fileStringWrite("$self->{strSpoolPath}/${strWalFile}.ok");
+                if (defined($hJob->{oException}))
+                {
+                    fileStringWrite(
+                        "$self->{strSpoolPath}/${strWalFile}.error",
+                        $hJob->{oException}->code() . "\n" . $hJob->{oException}->message());
+                }
+                else
+                {
+                    delete($self->{hWalState}{$strWalFile});
+                    fileStringWrite("$self->{strSpoolPath}/${strWalFile}.ok");
+                }
             }
         }
     }
