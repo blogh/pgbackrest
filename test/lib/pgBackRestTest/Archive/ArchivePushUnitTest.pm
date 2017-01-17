@@ -97,7 +97,10 @@ sub init
     filePathCreate($self->{strArchivePath}, undef, true, true);
 
     my $oArchiveInfo = new pgBackRest::Archive::ArchiveInfo($self->{strArchivePath}, false);
-    $oArchiveInfo->create(PG_VERSION_94, WAL_VERSION_94_SYS_ID, true)
+    $oArchiveInfo->create(PG_VERSION_94, WAL_VERSION_94_SYS_ID, true);
+
+    # Set spool path
+    $self->{strSpoolPath} = "$self->{strArchivePath}/out";
 }
 
 ####################################################################################################################################
@@ -148,7 +151,7 @@ sub run
             $self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $strWalSegment);
 
         filePathCreate($strWalMajorPath, undef, false, true);
-        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}", "TEST");
+        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}");
 
         $self->testResult(sub {archivePushCheck(
             $self->{oFile}, $strWalSegment, PG_VERSION_94, WAL_VERSION_94_SYS_ID, "$self->{strWalPath}/${strWalSegment}")},
@@ -159,7 +162,7 @@ sub run
         #---------------------------------------------------------------------------------------------------------------------------
         $strWalSegmentHash = "${strWalSegment}-10be15a0ab8e1653dfab18c83180e74f1507cab1";
 
-        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}", "TEST");
+        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}");
 
         $self->testException(sub {archivePushCheck(
             $self->{oFile}, $strWalSegment, PG_VERSION_94, WAL_VERSION_94_SYS_ID, "$self->{strWalPath}/${strWalSegment}")},
@@ -172,7 +175,7 @@ sub run
         $self->walGenerate(
             $self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $strWalSegment);
 
-        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}", "TEST");
+        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}");
 
         $self->testResult(sub {archivePushCheck(
             $self->{oFile}, $strWalSegment, PG_VERSION_94, WAL_VERSION_94_SYS_ID, "$self->{strWalPath}/${strWalSegment}")},
@@ -183,7 +186,7 @@ sub run
         #---------------------------------------------------------------------------------------------------------------------------
         $strWalSegmentHash = "${strWalSegment}-10be15a0ab8e1653dfab18c83180e74f1507cab1";
 
-        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}", "TEST");
+        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}");
 
         $self->testException(sub {archivePushCheck(
             $self->{oFile}, $strWalSegment, PG_VERSION_94, WAL_VERSION_94_SYS_ID, "$self->{strWalPath}/${strWalSegment}")},
@@ -197,7 +200,7 @@ sub run
         #---------------------------------------------------------------------------------------------------------------------------
         my $strHistoryFile = "00000001.history";
 
-        fileStringWrite("$self->{strArchivePath}/9.4-1/${strHistoryFile}", "TEST");
+        fileStringWrite("$self->{strArchivePath}/9.4-1/${strHistoryFile}");
 
         $self->testResult(sub {archivePushCheck(
             $self->{oFile}, $strHistoryFile, PG_VERSION_94, WAL_VERSION_94_SYS_ID, "$self->{strWalPath}/${strHistoryFile}")},
@@ -215,8 +218,9 @@ sub run
     {
         $self->clean();
 
-        my $oPushAsync = new pgBackRest::Archive::ArchivePushAsync(
-            $self->{strWalPath}, $self->testPath() . '/archive-push.socket');
+        my $oPushAsync = new pgBackRest::Archive::ArchivePushAsync($self->{strWalPath}, $self->{strSpoolPath});
+        logDisable(); $self->configLoadExpect(dclone($oOption), CMD_ARCHIVE_PUSH); logEnable();
+        $oPushAsync->initServer();
 
         my $iWalTimeline = 1;
         my $iWalMajor = 1;
@@ -224,7 +228,7 @@ sub run
 
         #---------------------------------------------------------------------------------------------------------------------------
         fileStringWrite(
-            "$self->{strWalStatusPath}/" . $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++) . '.done', 'TEST');
+            "$self->{strWalStatusPath}/" . $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++) . '.done');
 
         $self->testResult(
             sub {$oPushAsync->readyList()}, '()',
@@ -257,7 +261,7 @@ sub run
         $iWalTimeline++;
         $iWalMinor = 1;
 
-        fileStringWrite("$self->{strWalStatusPath}/00000002.history.ready", 'TEST');
+        fileStringWrite("$self->{strWalStatusPath}/00000002.history.ready");
 
         $self->testResult(
             sub {$oPushAsync->readyList()}, '(00000002.history)',
@@ -265,8 +269,7 @@ sub run
 
         #---------------------------------------------------------------------------------------------------------------------------
         fileStringWrite(
-            "$self->{strWalStatusPath}/" . $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++) . '.00000028.backup.ready',
-            'TEST');
+            "$self->{strWalStatusPath}/" . $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++) . '.00000028.backup.ready');
 
         $self->testResult(
             sub {$oPushAsync->readyList()}, '(000000020000000100000001.00000028.backup)',
@@ -279,7 +282,7 @@ sub run
         $self->clean();
 
         my $oPushAsync = new pgBackRest::Archive::ArchivePushAsync(
-            $self->{strWalPath}, $self->testPath() . '/archive-push.socket', $self->backrestExe());
+            $self->{strWalPath}, $self->{strSpoolPath}, $self->backrestExe());
 
         my $iWalTimeline = 1;
         my $iWalMajor = 1;
@@ -295,44 +298,38 @@ sub run
         #---------------------------------------------------------------------------------------------------------------------------
         $self->testResult(sub {$oPushAsync->processQueue()}, '(1, 1)', "begin processing ${strSegment}");
 
-        $self->testResult($oPushAsync->{hWalState}, "{${strSegment} => 0}", "${strSegment} not pushed");
+        $self->testResult(sub {fileList($self->{strSpoolPath})}, '[undef]', "${strSegment} not pushed");
 
         $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "end processing ${strSegment}", 10);
 
-        $self->testResult($oPushAsync->{hWalState}, "{${strSegment} => 1}", "${strSegment} pushed");
+        $self->testResult(sub {fileList($self->{strSpoolPath})}, "${strSegment}.ok", "${strSegment} pushed");
 
         #---------------------------------------------------------------------------------------------------------------------------
         $self->walRemove($self->{strWalPath}, $strSegment);
 
         $self->testResult(sub {$oPushAsync->processQueue()}, '(0, 0)', "remove ${strSegment}.ready");
 
-        $self->testResult($oPushAsync->{hWalState}, '{}', "${strSegment} removed");
+        $self->testResult(sub {fileList($self->{strSpoolPath})}, '[undef]', "${strSegment} removed");
 
         #---------------------------------------------------------------------------------------------------------------------------
         my $strHistoryFile = "00000001.history";
 
-        fileStringWrite("$self->{strWalPath}/${strHistoryFile}", "TEST");
-        fileStringWrite("$self->{strWalStatusPath}/$strHistoryFile.ready", 'TEST');
+        fileStringWrite("$self->{strWalPath}/${strHistoryFile}");
+        fileStringWrite("$self->{strWalStatusPath}/$strHistoryFile.ready");
 
         my $strBackupFile = "${strSegment}.00000028.backup";
 
-        fileStringWrite("$self->{strWalPath}/${strBackupFile}", "TEST");
-        fileStringWrite("$self->{strWalStatusPath}/$strBackupFile.ready", 'TEST');
-
-        $self->testResult(sub {$oPushAsync->processQueue()}, '(2, 2)', "begin processing ${strHistoryFile}, ${strBackupFile}");
-
-        $self->testResult(
-            $oPushAsync->{hWalState}, "{${strHistoryFile} => 0, ${strBackupFile} => 0}",
-            "${strHistoryFile}, ${strBackupFile} not pushed");
+        fileStringWrite("$self->{strWalPath}/${strBackupFile}");
+        fileStringWrite("$self->{strWalStatusPath}/$strBackupFile.ready");
 
         $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "end processing ${strHistoryFile}, ${strBackupFile}", 10);
 
         $self->testResult(
-            $oPushAsync->{hWalState}, "{${strHistoryFile} => 1, ${strBackupFile} => 1}",
+            sub {fileList($self->{strSpoolPath})}, "(${strHistoryFile}.ok, ${strBackupFile}.ok)",
             "${strHistoryFile}, ${strBackupFile} pushed");
 
-        fileRemove("$self->{strWalStatusPath}/$strHistoryFile.ready", 'TEST');
-        fileRemove("$self->{strWalStatusPath}/$strBackupFile.ready", 'TEST');
+        fileRemove("$self->{strWalStatusPath}/$strHistoryFile.ready");
+        fileRemove("$self->{strWalStatusPath}/$strBackupFile.ready");
 
         #---------------------------------------------------------------------------------------------------------------------------
         $self->optionBoolSetTest($oOption, OPTION_COMPRESS, true);
@@ -346,7 +343,7 @@ sub run
         $self->walRemove($self->{strWalPath}, $strSegment);
 
         $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "remove ${strSegment}.gz", 10);
-        $self->testResult($oPushAsync->{hWalState}, '{}', "${strSegment}.gz removed");
+        $self->testResult(sub {fileList($self->{strSpoolPath})}, '[undef]', "${strSegment}.gz removed");
 
         $self->walGenerate($self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $strSegment);
 

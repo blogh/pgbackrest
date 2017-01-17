@@ -127,7 +127,7 @@ sub run
         my $strWalSegmentHash = "${strWalSegment}-53aa5d59515aa7288ae02ba414c009aed1ca73ad";
 
         filePathCreate($strWalMajorPath, undef, false, true);
-        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}", "TEST");
+        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}");
 
         $self->testResult(sub {walSegmentFind($strArchivePath, $strWalSegment)}, $strWalSegmentHash, "${strWalSegment} WAL found");
 
@@ -139,7 +139,7 @@ sub run
         #---------------------------------------------------------------------------------------------------------------------------
         my $strWalSegmentHash2 = "${strWalSegment}-a0b0d38b8aa263e25b8ff52a0a4ba85b6be97f9b.gz";
 
-        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash2}", "TEST");
+        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash2}");
 
         $self->testException(
             sub {walSegmentFind($strArchivePath, $strWalSegment)}, ERROR_ARCHIVE_DUPLICATE,
@@ -151,7 +151,7 @@ sub run
         my $strWalMajorPath3 = "${strArchivePath}/" . substr($strWalSegment3, 0, 16);
 
         filePathCreate($strWalMajorPath3, undef, false, true);
-        fileStringWrite("${strWalMajorPath3}/${strWalSegmentHash3}", "TEST");
+        fileStringWrite("${strWalMajorPath3}/${strWalSegmentHash3}");
 
         $self->testException(
             sub {walSegmentFind($strArchivePath, substr($strWalSegment, 8, 16))}, ERROR_ARCHIVE_DUPLICATE,
@@ -171,7 +171,7 @@ sub run
         #---------------------------------------------------------------------------------------------------------------------------
         $strWalSegment = $strWalSegment . '.partial';
         $strWalSegmentHash = "${strWalSegment}-996195c807713ef9262170043e7222cb150aef70";
-        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}", "TEST");
+        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}");
 
         $self->testResult(sub {walSegmentFind($strArchivePath, $strWalSegment)}, $strWalSegmentHash, "${strWalSegment} WAL found");
     }

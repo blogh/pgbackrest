@@ -51,14 +51,14 @@ sub new
     (
         my $strOperation,
         $self->{strWalPath},
-        $self->{strSocketFile},
+        $self->{strSpoolPath},
         $self->{strBackRestBin},
     ) =
         logDebugParam
         (
             __PACKAGE__ . '->new', \@_,
             {name => 'strWalPath'},
-            {name => 'strSocketFile'},
+            {name => 'strSpoolPath'},
             {name => 'strBackRestBin', default => BACKREST_BIN},
         );
 
@@ -102,6 +102,7 @@ sub process
     # }
 
     my $bClient = true;
+    my $bRunning = false;
 
     if (lockAcquire(commandGet(), false))
     {
@@ -112,13 +113,10 @@ sub process
     else
     {
         logDebugMisc($strOperation, 'async archive-push process is already running');
+        $bRunning = true;
     }
 
-    if ($bClient)
-    {
-        $self->processClient();
-    }
-    else
+    if (!$bClient)
     {
         chdir '/'
             or confess "chdir() failed: $!";
@@ -144,7 +142,7 @@ sub process
     return logDebugReturn
     (
         $strOperation,
-        {name => 'iResult', value => 0, trace => true}
+        {name => 'bRunning', value => $bRunning, trace => true}
     );
 }
 
@@ -158,14 +156,12 @@ sub initServer
     # Assign function parameters, defaults, and log debug info
     my ($strOperation) = logDebugParam(__PACKAGE__ . '->initServer');
 
+    # Create the spool path
+    filePathCreate($self->{strSpoolPath}, undef, true, true);
+
     # Initialize the backup process
     $self->{oArchiveProcess} = new pgBackRest::Protocol::LocalProcess(BACKUP, 0, $self->{strBackRestBin});
     $self->{oArchiveProcess}->hostAdd(1, optionGet(OPTION_PROCESS_MAX));
-
-    # Initialize the socket
-    $self->{oServerSocket} = logErrorResult(
-        IO::Socket::UNIX->new(Type => SOCK_STREAM, Local => $self->{strSocketFile}, Listen => 1), ERROR_ARCHIVE_TIMEOUT,
-        'unable to initialize ' . CMD_ARCHIVE_PUSH . " async process on socket: $self->{strSocketFile}");
 
     # Return from function and log return values if any
     return logDebugReturn($strOperation);
@@ -182,52 +178,6 @@ sub processServer
     my ($strOperation) = logDebugParam(__PACKAGE__ . '->processServer');
 
     $self->initServer();
-
-    # my $oSocket = $oServer->accept();
-
-    # $self->processServer(new pgBackRest::Protocol::ArchivePushMinion($oSocket));
-    # $oSocket->close();
-    # $oServer->close();
-    # fileRemove($self->{strSocketFile}, true);
-
-    # Return from function and log return values if any
-    return logDebugReturn($strOperation);
-}
-
-####################################################################################################################################
-# processClient
-####################################################################################################################################
-sub processClient
-{
-    my $self = shift;
-
-    # Assign function parameters, defaults, and log debug info
-    my ($strOperation) = logDebugParam(__PACKAGE__ . '->processClient');
-
-    # Wait for the socket file to appear
-    my $iWaitSeconds = 10;
-    my $oWait = waitInit($iWaitSeconds);
-    my $bExists = false;
-
-    do
-    {
-        $bExists = fileExists($self->{strSocketFile});
-    }
-    while (!$bExists && waitMore($oWait));
-
-    if (!$bExists)
-    {
-        confess &log(ERROR, "unable to find socket after ${iWaitSeconds} second(s)", ERROR_ARCHIVE_TIMEOUT);
-    }
-
-    $self->{oClientSocket} = logErrorResult(
-        IO::Socket::UNIX->new(Type => SOCK_STREAM, Peer => $self->{strSocketFile}), ERROR_ARCHIVE_TIMEOUT,
-        'unable to connect to ' . CMD_ARCHIVE_PUSH . " async process socket: $self->{strSocketFile}");
-
-    # $self->processClient(new pgBackRest::Protocol::ArchivePushMaster($oSocket));
-
-    # my $strWalSegment = $oMaster->cmdExecute(OP_ARCHIVE_PUSH_ASYNC, ['000000010000000100000001'], true);
-    # &log(WARN, "I AM CONNECTED: " . $strWalSegment);
 
     # Return from function and log return values if any
     return logDebugReturn($strOperation);
@@ -265,7 +215,10 @@ sub processQueue
         {
             foreach my $hJob (@{$hyJob})
             {
-                $self->{hWalState}{@{$hJob->{rParam}}[1]} = true;
+                my $strWalFile = @{$hJob->{rParam}}[1];
+
+                delete($self->{hWalState}{$strWalFile});
+                fileStringWrite("$self->{strSpoolPath}/${strWalFile}.ok");
             }
         }
     }
@@ -294,9 +247,18 @@ sub readyList
     # Assign function parameters, defaults, and log debug info
     my ($strOperation) = logDebugParam(__PACKAGE__ . '->processQueue');
 
-    # Read the ready files
+    # Read the .ok files
+    my $hOkFile = {};
+
+    foreach my $strOkFile (fileList($self->{strSpoolPath}, '\.ok$'))
+    {
+        $strOkFile = substr($strOkFile, 0, length($strOkFile) - length('.ok'));
+        $hOkFile->{$strOkFile} = true;
+    }
+
+    # Read the .ready files
     my $strWalStatusPath = "$self->{strWalPath}/archive_status";
-    my @stryReadyFile = fileList($strWalStatusPath, '^.*\.ready$');
+    my @stryReadyFile = fileList($strWalStatusPath, '\.ready$');
 
     # Generate a list of new files
     my @stryNewReadyFile;
@@ -307,11 +269,11 @@ sub readyList
         # Remove .ready extension
         $strReadyFile = substr($strReadyFile, 0, length($strReadyFile) - length('.ready'));
 
-        # Add the file if it is not already in the hash
-        if (!defined($self->{hWalState}{$strReadyFile}))
+        # Add the file if it is not already queued or previously processed
+        if (!defined($self->{hWalQueue}{$strReadyFile}) && !defined($hOkFile->{$strReadyFile}))
         {
             # Set the file as not pushed
-            $self->{hWalState}{$strReadyFile} = false;
+            $self->{hWalQueue}{$strReadyFile} = true;
 
             # Push onto list of new files
             push(@stryNewReadyFile, $strReadyFile);
@@ -321,12 +283,12 @@ sub readyList
         $hReadyFile->{$strReadyFile} = true;
     }
 
-    # Remove files that are no longer in ready state
-    foreach my $strReadyFile (sort(keys(%{$self->{hWalState}})))
+    # Remove .ok files that are no longer in .ready state
+    foreach my $strOkFile (sort(keys(%{$hOkFile})))
     {
-        if (!defined($hReadyFile->{$strReadyFile}))
+        if (!defined($hReadyFile->{$strOkFile}))
         {
-            delete($self->{hWalState}{$strReadyFile});
+            fileRemove("$self->{strSpoolPath}/${strOkFile}.ok");
         }
     }
 

@@ -56,12 +56,39 @@ sub process
     # Start the async process and wait for WAL to complete
     if (optionGet(OPTION_ARCHIVE_ASYNC))
     {
-        &log(INFO, "push WAL segment ${strWalFile} asynchronously");
+        # Create the file object
+        my $oFile = new pgBackRest::File
+        (
+            optionGet(OPTION_STANZA),
+            optionGet(OPTION_SPOOL_PATH),
+            protocolGet(NONE)
+        );
 
-        # Load module dynamically
-        require pgBackRest::Archive::ArchivePushAsync;
-        new pgBackRest::Archive::ArchivePushAsync(
-            $strWalPath, optionGet(OPTION_LOCK_PATH) . '/' . optionGet(OPTION_STANZA) . '_' . commandGet() . '.socket')->process();
+        # Loop to check for status files and launch async process
+        my $bPushed = false;
+
+        do
+        {
+            # !!! Check for .done file (On first loop wait 0)
+
+            # !!! If not found then launch async
+            if (!$bPushed)
+            {
+                &log(INFO, "push WAL segment ${strWalFile} asynchronously");
+
+                # Load module dynamically
+                require pgBackRest::Archive::ArchivePushAsync;
+                my $oArchivePushAsync = new pgBackRest::Archive::ArchivePushAsync(
+                    $strWalPath, $oFile->pathGet(PATH_BACKUP_ARCHIVE_OUT));
+
+                if (!$oArchivePushAsync->process())
+                {
+                    # Check for an error
+                }
+            }
+
+        }
+        while (!$bPushed)
     }
     # Else push synchronously
     else

@@ -890,7 +890,7 @@ sub fileStringWrite
         (
             __PACKAGE__ . '::fileStringWrite', \@_,
             {name => 'strFileName', trace => true},
-            {name => 'strContent', trace => true},
+            {name => 'strContent', trace => true, required => false},
             {name => 'bSync', default => true, trace => true},
         );
 
@@ -899,8 +899,11 @@ sub fileStringWrite
         or confess &log(ERROR, "unable to open ${strFileName}");
 
     # Write the string
-    syswrite($hFile, $strContent)
-        or confess &log(ERROR, "unable to write string to ${strFileName}: $!", ERROR_FILE_WRITE);
+    if (defined($strContent) && length($strContent) > 0)
+    {
+        syswrite($hFile, $strContent)
+            or confess &log(ERROR, "unable to write string to ${strFileName}: $!", ERROR_FILE_WRITE);
+    }
 
     # Sync file
     $hFile->sync() if $bSync;
