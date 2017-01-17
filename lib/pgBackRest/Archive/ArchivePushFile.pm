@@ -22,6 +22,9 @@ use pgBackRest::Protocol::Common;
 
 ####################################################################################################################################
 # archivePushCheck
+#
+# Check that a WAL segment does not already exist in the archive be pushing.  Files that are not segments (e.g. .history, .backup)
+# will always be reported as not present and will be overwritten by archivePushFile().
 ####################################################################################################################################
 sub archivePushCheck
 {
@@ -108,6 +111,8 @@ push @EXPORT, qw(archivePushCheck);
 
 ####################################################################################################################################
 # archivePushFile
+#
+# Copy a file from the WAL directory to the archive.
 ####################################################################################################################################
 sub archivePushFile
 {
