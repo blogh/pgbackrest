@@ -267,6 +267,13 @@ sub processQueue
         }
     }
 
+    # If there are no jobs left then process one more time to properly reset the queue.
+    # ??? This requirement could be removed but it's best to leave it for now and improve later.
+    if ($self->{oArchiveProcess}->jobTotal() == 0)
+    {
+        $self->{oArchiveProcess}->process();
+    }
+
     # # Send keep alives
     # $oProtocolMaster->keepAlive();
 

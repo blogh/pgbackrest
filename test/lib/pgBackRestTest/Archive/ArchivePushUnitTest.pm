@@ -125,6 +125,7 @@ sub run
     $self->optionSetTest($oOption, OPTION_DB_TIMEOUT, 5);
     $self->optionSetTest($oOption, OPTION_PROTOCOL_TIMEOUT, 6);
     $self->optionSetTest($oOption, OPTION_REPO_PATH, $self->{strRepoPath});
+    $self->optionBoolSetTest($oOption, OPTION_COMPRESS, false);
 
     ################################################################################################################################
     if ($self->begin("ArchivePushFile::archivePushCheck"))
@@ -279,9 +280,9 @@ sub run
         #---------------------------------------------------------------------------------------------------------------------------
         $self->walRemove($self->{strWalPath}, $strSegment);
 
-        $self->testResult(sub {$oPushAsync->processQueue()}, '(0, 0)', "${strSegment}.ready removed");
+        $self->testResult(sub {$oPushAsync->processQueue()}, '(0, 0)', "remove ${strSegment}.ready");
 
-        $self->testResult($oPushAsync->{hWalState}, '{}', "${strSegment} pushed");
+        $self->testResult($oPushAsync->{hWalState}, '{}', "${strSegment} removed");
 
         #---------------------------------------------------------------------------------------------------------------------------
         my $strHistoryFile = "00000001.history";
@@ -305,6 +306,27 @@ sub run
         $self->testResult(
             $oPushAsync->{hWalState}, "{${strHistoryFile} => 1, ${strBackupFile} => 1}",
             "${strHistoryFile}, ${strBackupFile} pushed");
+
+        fileRemove("$self->{strWalStatusPath}/$strHistoryFile.ready", 'TEST');
+        fileRemove("$self->{strWalStatusPath}/$strBackupFile.ready", 'TEST');
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        $self->optionBoolSetTest($oOption, OPTION_COMPRESS, true);
+        logDisable(); $self->configLoadExpect(dclone($oOption), CMD_ARCHIVE_PUSH); logEnable();
+
+        $strSegment = $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++);
+        $self->walGenerate($self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $strSegment);
+
+        $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "processing ${strSegment}.gz", 10);
+
+        $self->walRemove($self->{strWalPath}, $strSegment);
+
+        $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "remove ${strSegment}.gz", 10);
+        $self->testResult($oPushAsync->{hWalState}, '{}', "${strSegment}.gz removed");
+
+        $self->walGenerate($self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $strSegment);
+
+        $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "processed ${strSegment}.gz", 10);
     }
 }
 

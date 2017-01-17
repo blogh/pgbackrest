@@ -79,7 +79,7 @@ sub reset
     $self->{bProcessing} = false;
 
     # Initialize job total to 0
-    $self->{iTotal} = 0;
+    $self->{iQueued} = 0;
 
     # Initialize running job total to 0
     $self->{iRunning} = 0;
@@ -332,7 +332,6 @@ sub process
 
             # Free the local process to receive another job
             $hLocal->{hJob} = undef;
-            $self->{iTotal}--;
             $self->{iRunning}--;
             $iCompleted++;
         }
@@ -422,6 +421,7 @@ sub process
                 $hLocal->{hJob} = $hJob;
                 $bFound = true;
                 $self->{iRunning}++;
+                $self->{iQueued}--;
 
                 logDebugMisc(
                     $strOperation, 'get job from queue',
@@ -513,7 +513,7 @@ sub queueJob
     }
 
     push(@{$hHost->{hyQueue}[$iQueueIdx]}, $hJob);
-    $self->{iTotal}++;
+    $self->{iQueued}++;
 
     # Return from function and log return values if any
     return logDebugReturn($strOperation);
@@ -535,7 +535,7 @@ sub jobTotal
     return logDebugReturn
     (
         $strOperation,
-        {name => 'iJobTotal', value => $self->{iTotal}}
+        {name => 'iJobTotal', value => $self->{iQueued} + $self->{iRunning}}
     );
 }
 
