@@ -173,7 +173,7 @@ sub run
         $strWalSegmentHash = "${strWalSegment}-996195c807713ef9262170043e7222cb150aef70";
         fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}", "TEST");
 
-        $self->testResult(sub {walSegmentFind($strArchivePath, $strWalSegment)}, undef, "${strWalSegment} WAL not found");
+        $self->testResult(sub {walSegmentFind($strArchivePath, $strWalSegment)}, $strWalSegmentHash, "${strWalSegment} WAL found");
     }
 }
 

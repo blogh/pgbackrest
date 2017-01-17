@@ -267,7 +267,7 @@ sub init
     return logDebugReturn
     (
         $strOperation,
-        {name => 'bResult', value => $self->{bProcessing}}
+        {name => 'bResult', value => $self->processing()}
     );
 }
 
@@ -284,7 +284,7 @@ sub process
     my ($strOperation) = logDebugParam(__PACKAGE__ . '->process');
 
     # Initialize processing
-    if (!$self->{bProcessing})
+    if (!$self->processing())
     {
         if (!$self->init())
         {
@@ -478,7 +478,7 @@ sub queueJob
         );
 
     # Don't add jobs while in the middle of processing the current queue
-    if ($self->{bProcessing})
+    if ($self->processing())
     {
         confess &log(ASSERT, 'new jobs cannot be added until processing is complete');
     }
@@ -536,6 +536,26 @@ sub jobTotal
     (
         $strOperation,
         {name => 'iJobTotal', value => $self->{iQueued} + $self->{iRunning}}
+    );
+}
+
+####################################################################################################################################
+# processing
+#
+# Are jobs being processed?
+####################################################################################################################################
+sub processing
+{
+    my $self = shift;
+
+    # Assign function parameters, defaults, and log debug info
+    my ($strOperation) = logDebugParam(__PACKAGE__ . '->processing');
+
+    # Return from function and log return values if any
+    return logDebugReturn
+    (
+        $strOperation,
+        {name => 'bProcessing', value => $self->{bProcessing}}
     );
 }
 

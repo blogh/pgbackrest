@@ -101,14 +101,12 @@ sub process
     #     }
     # }
 
-    # Create a lock file to make sure async archive-push does not run more than once
     my $bClient = true;
-    my $strSocketFile = optionGet(OPTION_LOCK_PATH) . '/archive-push.socket';
 
     if (lockAcquire(commandGet(), false))
     {
         # Remove the old socket file
-        fileRemove($strSocketFile, true);
+        fileRemove($self->{strSocketFile}, true);
         $bClient = fork() == 0 ? false : true;
     }
     else
@@ -245,37 +243,38 @@ sub processQueue
     # Assign function parameters, defaults, and log debug info
     my ($strOperation) = logDebugParam(__PACKAGE__ . '->processQueue');
 
-    # !!! If queue size is less than total processes * 2 then go look for more files
-    my $stryWalFile = $self->readyList();
+    # If no jobs are bing processed then get more jobs
+    my $stryWalFile = [];
 
-    # !!! Test that queue is processed
-
-    # Add files to the queue
-    foreach my $strWalFile (@{$stryWalFile})
+    if (!$self->{oArchiveProcess}->processing())
     {
-        $self->{oArchiveProcess}->queueJob(
-            1, 'default', $strWalFile, OP_ARCHIVE_PUSH_FILE,
-            [$self->{strWalPath}, $strWalFile, optionGet(OPTION_COMPRESS), optionGet(OPTION_REPO_SYNC)]);
-    }
+        $stryWalFile = $self->readyList();
 
-    # Process the queue
-    if (my $hyJob = $self->{oArchiveProcess}->process())
-    {
-        foreach my $hJob (@{$hyJob})
+        foreach my $strWalFile (@{$stryWalFile})
         {
-            $self->{hWalState}{@{$hJob->{rParam}}[1]} = true;
+            $self->{oArchiveProcess}->queueJob(
+                1, 'default', $strWalFile, OP_ARCHIVE_PUSH_FILE,
+                [$self->{strWalPath}, $strWalFile, optionGet(OPTION_COMPRESS), optionGet(OPTION_REPO_SYNC)]);
         }
     }
 
-    # If there are no jobs left then process one more time to properly reset the queue.
-    # ??? This requirement could be removed but it's best to leave it for now and improve later.
+    # Process jobs if there are any
+    if ($self->{oArchiveProcess}->jobTotal() > 0)
+    {
+        if (my $hyJob = $self->{oArchiveProcess}->process())
+        {
+            foreach my $hJob (@{$hyJob})
+            {
+                $self->{hWalState}{@{$hJob->{rParam}}[1]} = true;
+            }
+        }
+    }
+
+    # If there are no jobs left then process one more time to properly reset the queue
     if ($self->{oArchiveProcess}->jobTotal() == 0)
     {
         $self->{oArchiveProcess}->process();
     }
-
-    # # Send keep alives
-    # $oProtocolMaster->keepAlive();
 
     return logDebugReturn
     (

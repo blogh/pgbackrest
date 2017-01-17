@@ -303,7 +303,7 @@ sub walSegmentFind
         foreach my $strTimelineMajor (@stryTimelineMajor)
         {
             # Construct the name of the WAL segment to find
-            my $strWalSegmentFind = $bTimeline ? $strWalSegment : $strTimelineMajor . substr($strWalSegment, 8, 16);
+            my $strWalSegmentFind = $bTimeline ? substr($strWalSegment, 0, 24) : $strTimelineMajor . substr($strWalSegment, 8, 16);
 
             # Get the name of the requested WAL segment (may have hash info and compression extension)
             push(@stryWalFileName, fileList(

@@ -166,6 +166,30 @@ sub run
             ERROR_ARCHIVE_DUPLICATE, "WAL segment ${strWalSegment} already exists in the archive");
 
         #---------------------------------------------------------------------------------------------------------------------------
+        $strWalSegment = "${strWalSegment}.partial";
+        $strWalSegmentHash = "${strWalSegment}-1e34fa1c833090d94b9bb14f2a8d3153dca6ea27";
+
+        $self->walGenerate(
+            $self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $strWalSegment);
+
+        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}", "TEST");
+
+        $self->testResult(sub {archivePushCheck(
+            $self->{oFile}, $strWalSegment, PG_VERSION_94, WAL_VERSION_94_SYS_ID, "$self->{strWalPath}/${strWalSegment}")},
+            '(9.4-1, 1e34fa1c833090d94b9bb14f2a8d3153dca6ea27)', "${strWalSegment} WAL found");
+
+        fileRemove("${strWalMajorPath}/${strWalSegmentHash}");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        $strWalSegmentHash = "${strWalSegment}-10be15a0ab8e1653dfab18c83180e74f1507cab1";
+
+        fileStringWrite("${strWalMajorPath}/${strWalSegmentHash}", "TEST");
+
+        $self->testException(sub {archivePushCheck(
+            $self->{oFile}, $strWalSegment, PG_VERSION_94, WAL_VERSION_94_SYS_ID, "$self->{strWalPath}/${strWalSegment}")},
+            ERROR_ARCHIVE_DUPLICATE, "WAL segment ${strWalSegment} already exists in the archive");
+
+        #---------------------------------------------------------------------------------------------------------------------------
         $self->testException(sub {archivePushCheck(
             $self->{oFile}, $strWalSegment, PG_VERSION_94, WAL_VERSION_94_SYS_ID)},
             ERROR_ASSERT, "strFile is required in File->hash");
