@@ -194,55 +194,60 @@ sub processQueue
     my ($strOperation) = logDebugParam(__PACKAGE__ . '->processQueue');
 
     # If no jobs are bing processed then get more jobs
-    my $stryWalFile = [];
+    my $stryWalFile = $self->readyList();
 
-    if (!$self->{oArchiveProcess}->processing())
+    foreach my $strWalFile (@{$stryWalFile})
     {
-        $stryWalFile = $self->readyList();
-
-        foreach my $strWalFile (@{$stryWalFile})
-        {
-            $self->{oArchiveProcess}->queueJob(
-                1, 'default', $strWalFile, OP_ARCHIVE_PUSH_FILE,
-                [$self->{strWalPath}, $strWalFile, optionGet(OPTION_COMPRESS), optionGet(OPTION_REPO_SYNC)]);
-        }
+        $self->{oArchiveProcess}->queueJob(
+            1, 'default', $strWalFile, OP_ARCHIVE_PUSH_FILE,
+            [$self->{strWalPath}, $strWalFile, optionGet(OPTION_COMPRESS), optionGet(OPTION_REPO_SYNC)]);
     }
 
     # Process jobs if there are any
+    my $iOkTotal = 0;
+    my $iErrorTotal = 0;
+
     if ($self->{oArchiveProcess}->jobTotal() > 0)
     {
-        if (my $hyJob = $self->{oArchiveProcess}->process())
+        while (my $hyJob = $self->{oArchiveProcess}->process())
         {
             foreach my $hJob (@{$hyJob})
             {
                 my $strWalFile = @{$hJob->{rParam}}[1];
 
+                # Remove from queue
+                delete($self->{hWalQueue}{$strWalFile});
+
+                # If error then write out an error file
                 if (defined($hJob->{oException}))
                 {
                     fileStringWrite(
                         "$self->{strSpoolPath}/${strWalFile}.error",
                         $hJob->{oException}->code() . "\n" . $hJob->{oException}->message());
+
+                        $iErrorTotal++;
                 }
+                # Else write success
                 else
                 {
-                    delete($self->{hWalState}{$strWalFile});
+                    # Remove the error file, if any
+                    fileRemove("$self->{strSpoolPath}/${strWalFile}.error", true);
+
+                    # Write the ok file to indicate success
                     fileStringWrite("$self->{strSpoolPath}/${strWalFile}.ok");
+
+                    $iOkTotal++;
                 }
             }
         }
-    }
-
-    # If there are no jobs left then process one more time to properly reset the queue
-    if ($self->{oArchiveProcess}->jobTotal() == 0)
-    {
-        $self->{oArchiveProcess}->process();
     }
 
     return logDebugReturn
     (
         $strOperation,
         {name => 'iNewTotal', value => scalar(@{$stryWalFile})},
-        {name => 'iQueueTotal', value => $self->{oArchiveProcess}->jobTotal()}
+        {name => 'iOkTotal', value => $iOkTotal},
+        {name => 'iErrorTotal', value => $iErrorTotal}
     );
 }
 

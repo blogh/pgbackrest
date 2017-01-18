@@ -291,77 +291,97 @@ sub run
         my $iWalMinor = 1;
 
         #---------------------------------------------------------------------------------------------------------------------------
+        # Generate a normal segment
         my $strSegment = $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++);
         $self->walGenerate($self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $strSegment);
 
-        $self->testResult(sub {$oPushAsync->processQueue()}, '(1, 1)', "begin processing ${strSegment}");
-
-        $self->testResult(sub {fileList($self->{strSpoolPath})}, '[undef]', "${strSegment} not pushed");
-
-        # Generate an error
+        # Generate an error (.ready file withough a corresponding WAL file)
         my $strSegmentError = $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++);
         fileStringWrite("$self->{strWalStatusPath}/$strSegmentError.ready");
 
-        $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "end processing ${strSegment}", 10);
-        $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "end processing errored ${strSegmentError}", 10);
+        # Process and check results
+        $self->testResult(sub {$oPushAsync->processQueue()}, '(2, 1, 1)', "process ${strSegment}, ${strSegmentError}");
+
+        $self->testResult(
+            sub {fileList($self->{strSpoolPath})}, "(${strSegment}.ok, ${strSegmentError}.error)",
+            "${strSegment} pushed, ${strSegmentError} errored");
 
         $self->testResult(
             sub {fileStringRead("$self->{strSpoolPath}/$strSegmentError.error")},
             ERROR_FILE_OPEN . "\nraised on local-1 host: unable to open $self->{strWalPath}/${strSegmentError}",
             "test ${strSegmentError}.error contents");
 
-        $self->testResult(
-            sub {fileList($self->{strSpoolPath})}, "(${strSegment}.ok, ${strSegmentError}.error)", "${strSegment} pushed");
-
         #---------------------------------------------------------------------------------------------------------------------------
+        # Remove pushed WAL file
         $self->walRemove($self->{strWalPath}, $strSegment);
 
-        $self->testResult(sub {$oPushAsync->processQueue()}, '(0, 0)', "remove ${strSegment}.ready");
+        # Fix errored WAL file by providing a valid segment
+        $self->walGenerate($self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $strSegmentError);
 
-        $self->testResult(sub {fileList($self->{strSpoolPath})}, "${strSegmentError}.error", "${strSegment} removed");
+        # Process and check results
+        $self->testResult(sub {$oPushAsync->processQueue()}, '(1, 1, 0)', "process ${strSegment}, ${strSegmentError}");
 
-        fileRemove("$self->{strWalStatusPath}/$strSegmentError.ready");
-        fileRemove("$self->{strSpoolPath}/$strSegmentError.error");
+        $self->testResult(sub {fileList($self->{strSpoolPath})}, "${strSegmentError}.ok", "${strSegmentError} pushed");
 
         #---------------------------------------------------------------------------------------------------------------------------
+        # Remove previously errored WAL file
+        $self->walRemove($self->{strWalPath}, $strSegmentError);
+
+        # Process and check results
+        $self->testResult(sub {$oPushAsync->processQueue()}, '(0, 0, 0)', "remove ${strSegmentError}.ready");
+
+        $self->testResult(sub {fileList($self->{strSpoolPath})}, "[undef]", "${strSegmentError} removed");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        # Create history file
         my $strHistoryFile = "00000001.history";
 
         fileStringWrite("$self->{strWalPath}/${strHistoryFile}");
         fileStringWrite("$self->{strWalStatusPath}/$strHistoryFile.ready");
 
+        # Create backup file
         my $strBackupFile = "${strSegment}.00000028.backup";
 
         fileStringWrite("$self->{strWalPath}/${strBackupFile}");
         fileStringWrite("$self->{strWalStatusPath}/$strBackupFile.ready");
 
-        $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "end processing ${strHistoryFile}, ${strBackupFile}", 10);
+        # Process and check results
+        $self->testResult(sub {$oPushAsync->processQueue();}, '(2, 2, 0)', "end processing ${strHistoryFile}, ${strBackupFile}");
 
         $self->testResult(
             sub {fileList($self->{strSpoolPath})}, "(${strHistoryFile}.ok, ${strBackupFile}.ok)",
             "${strHistoryFile}, ${strBackupFile} pushed");
 
+        # Remove history and backup files
         fileRemove("$self->{strWalStatusPath}/$strHistoryFile.ready");
         fileRemove("$self->{strWalStatusPath}/$strBackupFile.ready");
 
         #---------------------------------------------------------------------------------------------------------------------------
+        # Enable compression
         $self->optionBoolSetTest($oOption, OPTION_COMPRESS, true);
         logDisable(); $self->configLoadExpect(dclone($oOption), CMD_ARCHIVE_PUSH); logEnable();
 
+        # Generate a normal segment
         $strSegment = $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++);
         $self->walGenerate($self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $strSegment);
 
-        $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "processing ${strSegment}.gz", 10);
+        # Process and check results
+        $self->testResult(sub {$oPushAsync->processQueue();}, '(1, 1, 0)', "processing ${strSegment}.gz");
 
+        # Remove the WAL and process so the .ok file is removed
         $self->walRemove($self->{strWalPath}, $strSegment);
 
-        $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "remove ${strSegment}.gz", 10);
-        $self->testResult(sub {fileList($self->{strSpoolPath})}, '[undef]', "${strSegment}.gz removed");
+        $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0, 0)', "remove ${strSegment}.ready");
 
+        $self->testResult(sub {fileList($self->{strSpoolPath})}, "[undef]", "${strSegment}.ok removed");
+
+        # Generate the same WAL again
         $self->walGenerate($self->{oFile}, $self->{strWalPath}, WAL_VERSION_94, 1, $strSegment);
 
-        $self->testResult(sub {$oPushAsync->processQueue();}, '(0, 0)', "processed ${strSegment}.gz", 10);
+        # Process and check results
+        $self->testResult(sub {$oPushAsync->processQueue();}, '(1, 1, 0)', "processed duplicate ${strSegment}.gz");
 
-        #---------------------------------------------------------------------------------------------------------------------------
+        $self->testResult(sub {fileList($self->{strSpoolPath})}, "000000010000000100000003.ok", "${strSegment} pushed");
     }
 }
 
