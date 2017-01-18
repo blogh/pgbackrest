@@ -219,7 +219,7 @@ my $oTestDef =
                 },
                 {
                     &TESTDEF_TEST_NAME => 'push-unit',
-                    &TESTDEF_TEST_TOTAL => 4,
+                    &TESTDEF_TEST_TOTAL => 5,
                     &TESTDEF_TEST_INDIVIDUAL => false,
                     &TESTDEF_EXPECT => false,
 
@@ -227,6 +227,7 @@ my $oTestDef =
                     {
                         &TESTDEF_TEST_ALL =>
                         {
+                            &TESTDEF_MODULE_ARCHIVE_PUSH => TESTDEF_COVERAGE_FULL,
                             &TESTDEF_MODULE_ARCHIVE_PUSH_ASYNC => TESTDEF_COVERAGE_FULL,
                             &TESTDEF_MODULE_ARCHIVE_PUSH_FILE => TESTDEF_COVERAGE_FULL,
                         }

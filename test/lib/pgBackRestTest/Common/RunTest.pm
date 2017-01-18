@@ -259,7 +259,7 @@ sub testResult
     my $strDescription = shift;
     my $iWaitSeconds = shift;
 
-    &log(INFO, '     ' . (defined($strDescription) ? $strDescription : 'no description'));
+    &log(INFO, '    ' . (defined($strDescription) ? $strDescription : 'no description'));
     my $strActual;
 
     my $oWait = waitInit(defined($iWaitSeconds) ? $iWaitSeconds : 0);
@@ -324,7 +324,7 @@ sub testException
 
     # Output first line of the error message
     my @stryErrorMessage = split('\n', $strMessageExpected);
-    &log(INFO, "     [${iCodeExpected}] " . $stryErrorMessage[0]);
+    &log(INFO, "    [${iCodeExpected}] " . $stryErrorMessage[0]);
 
     my $bError = false;
     my $strError = "exception ${iCodeExpected}, \"${strMessageExpected}\" was expected";

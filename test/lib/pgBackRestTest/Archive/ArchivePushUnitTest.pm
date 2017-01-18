@@ -383,6 +383,93 @@ sub run
 
         $self->testResult(sub {fileList($self->{strSpoolPath})}, "000000010000000100000003.ok", "${strSegment} pushed");
     }
+
+    ################################################################################################################################
+    if ($self->begin("ArchivePush->walStatus()"))
+    {
+        $self->clean();
+        my $oPush = new pgBackRest::Archive::ArchivePush();
+
+        my $iWalTimeline = 1;
+        my $iWalMajor = 1;
+        my $iWalMinor = 1;
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        my $strSegment = $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++);
+
+        $self->testResult(sub {$oPush->walStatus($self->{strSpoolPath}, $strSegment);}, '0',  "${strSegment} WAL no status");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        # Generate a normal ok
+        filePathCreate($self->{strSpoolPath}, undef, undef, true);
+        fileStringWrite("$self->{strSpoolPath}/${strSegment}.ok");
+
+        # Check status
+        $self->testResult(sub {$oPush->walStatus($self->{strSpoolPath}, $strSegment);}, '1',  "${strSegment} WAL ok");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        # Generate a bogus warning ok (if content is present there must be two lines)
+        $strSegment = $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++);
+        fileStringWrite("$self->{strSpoolPath}/${strSegment}.ok", "Test Warning");
+
+        # Check status
+        $self->testException(sub {$oPush->walStatus($self->{strSpoolPath}, $strSegment);}, ERROR_ASSERT,
+            "${strSegment}.ok content must have at least two lines:\nTest Warning");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        # Generate a valid warning ok
+        fileStringWrite("$self->{strSpoolPath}/${strSegment}.ok", "0\nTest Warning");
+
+        # Check status
+        $self->testResult(sub {$oPush->walStatus($self->{strSpoolPath}, $strSegment);}, '1',  "${strSegment} WAL warning ok");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        # Generate an invalid error
+        fileStringWrite("$self->{strSpoolPath}/${strSegment}.error");
+
+        # Check status (will error because there are now two status files)
+        $self->testException(sub {$oPush->walStatus($self->{strSpoolPath}, $strSegment);}, ERROR_ASSERT,
+            "multiple status files found in /home/vagrant/test/test-0/repo/archive/db/out for ${strSegment}:" .
+            " ${strSegment}.error, ${strSegment}.ok");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        # Remove the ok file
+        fileRemove("$self->{strSpoolPath}/${strSegment}.ok");
+
+        # Check status
+        $self->testException(
+            sub {$oPush->walStatus($self->{strSpoolPath}, $strSegment);}, ERROR_ASSERT, "${strSegment}.error has no content");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        # Generate a valid error
+        fileStringWrite(
+            "$self->{strSpoolPath}/${strSegment}.error",
+            ERROR_ARCHIVE_DUPLICATE . "\nWAL segment ${strSegment} already exists in the archive");
+
+        # Check status
+        $self->testException(sub {$oPush->walStatus($self->{strSpoolPath}, $strSegment);}, ERROR_ARCHIVE_DUPLICATE,
+            "WAL segment ${strSegment} already exists in the archive");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        # Change the error file to an ok file
+        fileMove("$self->{strSpoolPath}/${strSegment}.error", "$self->{strSpoolPath}/${strSegment}.ok");
+
+        # Check status
+        $self->testResult(
+            sub {$oPush->walStatus($self->{strSpoolPath}, $strSegment);}, '1',
+            "${strSegment} WAL warning ok (converted from .error)");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        # Generate a normal ok
+        $strSegment = $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++);
+        fileStringWrite("$self->{strSpoolPath}/${strSegment}.ok");
+
+        #---------------------------------------------------------------------------------------------------------------------------
+        $strSegment = $self->walSegment($iWalTimeline, $iWalMajor, $iWalMinor++);
+
+        # Check status
+        $self->testResult(sub {$oPush->walStatus($self->{strSpoolPath}, $strSegment);}, '0',  "${strSegment} WAL no status");
+    }
 }
 
 1;

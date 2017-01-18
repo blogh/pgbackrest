@@ -19,6 +19,7 @@ use pgBackRest::Common::Log;
 use pgBackRest::Archive::ArchiveCommon;
 use pgBackRest::Config::Config;
 use pgBackRest::File;
+use pgBackRest::FileCommon;
 use pgBackRest::Protocol::Common;
 use pgBackRest::Protocol::Protocol;
 
@@ -57,38 +58,27 @@ sub process
     if (optionGet(OPTION_ARCHIVE_ASYNC))
     {
         # Create the file object
-        my $oFile = new pgBackRest::File
-        (
-            optionGet(OPTION_STANZA),
-            optionGet(OPTION_SPOOL_PATH),
-            protocolGet(NONE)
-        );
+        my $strSpoolPath = (new pgBackRest::File(
+            optionGet(OPTION_STANZA), optionGet(OPTION_SPOOL_PATH), protocolGet(NONE)))->pathGet(PATH_BACKUP_ARCHIVE_OUT);
 
         # Loop to check for status files and launch async process
         my $bPushed = false;
+        my $oWait = waitInit(optionGet(OPTION_ARCHIVE_TIMEOUT));
 
         do
         {
-            # !!! Check for .done file (On first loop wait 0)
+            # Check WAL status
+            $bPushed = $self->walStatus($strSpoolPath, $strWalFile);
 
-            # !!! If not found then launch async
+            # If not found then launch async process
             if (!$bPushed)
             {
-                &log(INFO, "push WAL segment ${strWalFile} asynchronously");
-
                 # Load module dynamically
                 require pgBackRest::Archive::ArchivePushAsync;
-                my $oArchivePushAsync = new pgBackRest::Archive::ArchivePushAsync(
-                    $strWalPath, $oFile->pathGet(PATH_BACKUP_ARCHIVE_OUT));
-
-                if (!$oArchivePushAsync->process())
-                {
-                    # Check for an error
-                }
+                (new pgBackRest::Archive::ArchivePushAsync($strWalPath, $strSpoolPath))->process();
             }
-
         }
-        while (!$bPushed)
+        while (!$bPushed && waitMore($oWait))
     }
     # Else push synchronously
     else
@@ -109,11 +99,108 @@ sub process
         archivePushFile($oFile, $strWalPath, $strWalFile, optionGet(OPTION_COMPRESS), optionGet(OPTION_REPO_SYNC));
     }
 
+    &log(INFO, "pushed WAL segment ${strWalFile}" . (optionGet(OPTION_ARCHIVE_ASYNC) ? ' asynchronously' : ''));
+
     # Return from function and log return values if any
     return logDebugReturn
     (
         $strOperation,
         {name => 'iResult', value => 0, trace => true}
+    );
+}
+
+####################################################################################################################################
+# walStatus
+####################################################################################################################################
+sub walStatus
+{
+    my $self = shift;
+
+    # Assign function parameters, defaults, and log debug info
+    my
+    (
+        $strOperation,
+        $strSpoolPath,
+        $strWalFile,
+    ) =
+        logDebugParam
+        (
+            __PACKAGE__ . '->walStatusCheck', \@_,
+            {name => 'strSpoolPath'},
+            {name => 'strWalFile'},
+        );
+
+    # Default result is false
+    my $bResult = false;
+
+    # Find matching status files
+    my @stryStatusFile = fileList($strSpoolPath, '^' . $strWalFile . '\.(ok|error)$', undef, true);
+
+    if (@stryStatusFile > 0)
+    {
+        # If more than one status file was found then assert - this could be a bug in the async process
+        if (@stryStatusFile > 1)
+        {
+            confess &log(ASSERT,
+                "multiple status files found in ${strSpoolPath} for ${strWalFile}: " . join(', ', @stryStatusFile));
+        }
+
+        # Read the status file
+        my @stryWalStatus = split("\n", fileStringRead("${strSpoolPath}/$stryStatusFile[0]"));
+
+        # Status file must have at least two lines if it has content
+        my $iCode;
+        my $strMessage;
+
+        # Parse status content
+        if (@stryWalStatus != 0)
+        {
+            if (@stryWalStatus < 2)
+            {
+                confess &log(ASSERT, "$stryStatusFile[0] content must have at least two lines:\n" . join("\n", @stryWalStatus));
+            }
+
+            $iCode = shift(@stryWalStatus);
+            $strMessage = join("\n", @stryWalStatus);
+        }
+
+        # Process ok files
+        if ($stryStatusFile[0] =~ /\.ok$/)
+        {
+            # If there is content in the status file it is a warning
+            if (@stryWalStatus != 0)
+            {
+                # If error code is not success, then this was a renamed .error file
+                if ($iCode != 0)
+                {
+                    $strMessage =
+                        "WAL segment ${strWalFile} was not pushed due to error and was manually skipped:\n" . $strMessage;
+                }
+
+                &log(WARN, $strMessage);
+            }
+        }
+        # Process error files
+        else
+        {
+            # Error files must have content
+            if (@stryWalStatus == 0)
+            {
+                confess &log(ASSERT, "$stryStatusFile[0] has no content");
+            }
+
+            # Confess the error
+            confess &log(ERROR, $strMessage, $iCode);
+        }
+
+        $bResult = true;
+    }
+
+    # Return from function and log return values if any
+    return logDebugReturn
+    (
+        $strOperation,
+        {name => 'bResult', value => $bResult}
     );
 }
 
